@@ -1,0 +1,30 @@
+version: 1
+capabilities:
+  graphify:
+    roles: [investigator, implementer, reviewer, oracle-specialist, ui-specialist, integration-specialist]
+    purpose: Resolve the designated local publication, traverse bounded relationships, and retain provenance for source verification.
+    availability: probe
+  source-and-git:
+    roles: [investigator, implementer, reviewer, oracle-specialist, ui-specialist, integration-specialist]
+    purpose: Read current source and repository state; writes are limited by assignment and effective native permissions.
+    availability: probe
+  ide-semantic:
+    roles: [investigator, implementer, reviewer, oracle-specialist, integration-specialist]
+    purpose: Use an available configured IDE integration for semantic symbols, callers, and diagnostics when a relevant project is loaded.
+    availability: probe
+  application-model:
+    roles: [investigator, implementer, integration-specialist]
+    purpose: Consult an available project-specific server or runtime model for assigned infrastructure questions; no server is installed by this kit.
+    availability: probe
+  browser:
+    roles: [ui-specialist, implementer, reviewer]
+    purpose: Observe an explicitly assigned application flow through an available browser tool with appropriate access.
+    availability: probe
+  validation-catalog:
+    roles: [implementer, reviewer]
+    purpose: Select declared checks with known working directories, prerequisites, writes, and actual test execution reporting.
+    availability: probe
+  coordinator:
+    roles: []
+    purpose: Parent-facing job start/status/resume/cancel/report capability; excluded from worker recursion.
+    availability: probe

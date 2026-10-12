@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="410" viewBox="0 0 1280 410" role="img" aria-labelledby="title description">
+  <title id="title">Codex on Steroids</title>
+  <desc id="description">A project-aware engineering workflow connecting context, graph investigation, implementation, independent review and resumable jobs.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101b2c"/>
+      <stop offset="1" stop-color="#101224"/>
+    </linearGradient>
+    <radialGradient id="glow">
+      <stop offset="0" stop-color="#264856" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#264856" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#8999b5" stroke-opacity="0.06"/>
+    </pattern>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#57dcc2"/>
+      <stop offset="1" stop-color="#9d94f4"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="410" rx="18" fill="url(#background)"/>
+  <rect width="1280" height="410" rx="18" fill="url(#grid)"/>
+  <ellipse cx="1010" cy="190" rx="330" ry="280" fill="url(#glow)"/>
+  <rect x="0" y="0" width="1280" height="4" fill="url(#accent)"/>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <text x="60" y="68" fill="#66ddc6" font-size="14" font-weight="700" letter-spacing="2.5">THE PORTABLE ENGINEERING TOOLKIT</text>
+    <text x="58" y="145" fill="#f4f7ff" font-size="57" font-weight="700" letter-spacing="-1.8">Codex on Steroids</text>
+    <text x="60" y="196" fill="#c3cede" font-size="24">Understand. Build. Verify.</text>
+    <text x="60" y="230" fill="#94a5bc" font-size="18">Project context, specialist roles and a reviewable trail.</text>
+    <g font-size="14" font-weight="600" text-anchor="middle">
+      <rect x="60" y="295" width="137" height="38" rx="19" fill="#20342f" stroke="#4b8f7f"/>
+      <text x="128.5" y="319" fill="#a4f0dd">Native Codex</text>
+      <rect x="209" y="295" width="105" height="38" rx="19" fill="#20342f" stroke="#4b8f7f"/>
+      <text x="261.5" y="319" fill="#a4f0dd">Graphify</text>
+      <rect x="326" y="295" width="116" height="38" rx="19" fill="#2a2940" stroke="#68618d"/>
+      <text x="384" y="319" fill="#d0c7ff">LangGraph</text>
+      <rect x="454" y="295" width="135" height="38" rx="19" fill="#2a2940" stroke="#68618d"/>
+      <text x="521.5" y="319" fill="#d0c7ff">AutoGen lab</text>
+    </g>
+    <g fill="none" stroke-width="2">
+      <path d="M 796 110 L 936 110 L 1014 196 L 1150 196" stroke="#4d8e89"/>
+      <path d="M 1014 196 L 936 289 L 796 289" stroke="#8078b3"/>
+      <path d="M 796 289 C 707 289 707 110 796 110" stroke="#54788d" stroke-dasharray="5 7"/>
+      <path d="M 826 110 L 845 110 M 962 139 L 975 154 M 1093 196 L 1112 196 M 969 250 L 956 265 M 866 289 L 847 289" stroke="#a0d7cb" stroke-linecap="round"/>
+    </g>
+    <g text-anchor="middle" font-size="13" font-weight="600">
+      <circle cx="796" cy="110" r="25" fill="#183430" stroke="#5ad9bc" stroke-width="2"/>
+      <path d="M 785 106 L 785 99 L 807 99 L 807 121 L 785 121 L 785 114 M 780 110 L 794 110" fill="none" stroke="#a4f0dd" stroke-width="2" stroke-linecap="round"/>
+      <text x="796" y="157" fill="#c3cede">Context</text>
+      <circle cx="936" cy="110" r="25" fill="#183430" stroke="#5ad9bc" stroke-width="2"/>
+      <path d="M 926 113 L 936 101 L 947 115 M 927 114 L 946 115" fill="none" stroke="#a4f0dd" stroke-width="2"/>
+      <circle cx="926" cy="114" r="3" fill="#a4f0dd"/>
+      <circle cx="936" cy="101" r="3" fill="#a4f0dd"/>
+      <circle cx="947" cy="115" r="3" fill="#a4f0dd"/>
+      <text x="936" y="66" fill="#c3cede">Investigate</text>
+      <circle cx="1014" cy="196" r="31" fill="#183430" stroke="#5ad9bc" stroke-width="2"/>
+      <path d="M 1003 188 L 995 196 L 1003 204 M 1025 188 L 1033 196 L 1025 204 M 1018 185 L 1010 207" fill="none" stroke="#a4f0dd" stroke-width="2" stroke-linecap="round"/>
+      <text x="1014" y="249" fill="#c3cede">Build</text>
+      <circle cx="1150" cy="196" r="25" fill="#29263f" stroke="#a59aee" stroke-width="2"/>
+      <path d="M 1139 196 L 1147 204 L 1162 187" fill="none" stroke="#d0c7ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="1150" y="244" fill="#c3cede">Review</text>
+      <circle cx="796" cy="289" r="25" fill="#29263f" stroke="#a59aee" stroke-width="2"/>
+      <path d="M 786 295 A 12 12 0 1 0 786 282 M 785 274 L 785 283 L 794 283" fill="none" stroke="#d0c7ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="796" y="337" fill="#c3cede">Resume</text>
+    </g>
+    <text x="60" y="381" fill="#74849d" font-size="12">WINDOWS + POWERSHELL</text>
+    <text x="1216" y="381" fill="#74849d" font-size="12" text-anchor="end">SCOPED WORK · SOURCE EVIDENCE · INDEPENDENT REVIEW</text>
+  </g>
+</svg>

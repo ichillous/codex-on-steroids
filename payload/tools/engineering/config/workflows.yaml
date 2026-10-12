@@ -1,0 +1,18 @@
+version: 1
+defaults:
+  model: gpt-6-astra
+  reasoning_effort: ultra
+  max_workers: 4
+  max_revisions: 2
+  worker_timeout_seconds: 1800
+workflows:
+  investigate:
+    stages: [inventory, graph, investigate, plan, review, report]
+    purpose: Source-backed investigation with an independent acceptance review.
+    implementation_writes: false
+  implement:
+    stages: [inventory, graph, investigate, plan, implement, validate, review, report]
+    purpose: Implement an authorized scoped change and tie validation and review to its resulting source.
+    implementation_writes: true
+    revision_policy: Revise only concrete unmet acceptance criteria or actionable review findings, within max_revisions.
+    recovery_policy: Reconcile a started operation before retry; preserve checkout ownership until its worker is known to have stopped.

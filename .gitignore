@@ -1,0 +1,40 @@
+# Local environments and interpreter/test caches
+**/.venv*/
+**/venv/
+**/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+*.py[cod]
+
+# Generated setup, job, graph and lab evidence
+**/.engineering-state/
+**/graphify-out/
+*.log
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.db
+*.db-*
+*.zip
+
+# Local credentials, environment files and key material
+.env
+.env.*
+**/.env
+**/.env.*
+**/auth.json
+**/credentials.json
+**/.secrets/
+**/.ssh/
+**/.aws/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Editor and operating-system local files
+/.vscode/
+/.idea/
+.DS_Store
+Thumbs.db

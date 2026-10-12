@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "workspace-engineering"
+version = "0.1.0"
+description = "Persistent engineering workflows for a configured project"
+requires-python = ">=3.11"
+dependencies = [
+  "langgraph==1.2.12",
+  "langgraph-checkpoint-sqlite==3.1.1",
+  "openai-codex==0.158.0",
+  "mcp==2.2.0",
+  "PyYAML==6.0.3",
+  "pydantic>=2.13,<3",
+]
+
+[project.optional-dependencies]
+test = ["pytest==9.1.1"]
+
+[project.scripts]
+workspace-engineering = "workspace_engineering.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

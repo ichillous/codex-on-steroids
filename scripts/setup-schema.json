@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["mode", "summary", "repositories", "validation_choices", "specialists", "instructions", "unknowns"],
+  "properties": {
+    "mode": {"type": "string", "enum": ["model"]},
+    "summary": {"type": "string"},
+    "repositories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "purpose", "evidence"],
+        "properties": {
+          "id": {"type": "string"},
+          "purpose": {"type": "string"},
+          "evidence": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "validation_choices": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["candidate_id", "rationale"],
+        "properties": {
+          "candidate_id": {"type": "string"},
+          "rationale": {"type": "string"}
+        }
+      }
+    },
+    "specialists": {
+      "type": "array",
+      "items": {"type": "string", "enum": ["investigator", "implementer", "reviewer", "oracle-specialist", "ui-specialist", "integration-specialist"]}
+    },
+    "instructions": {"type": "array", "items": {"type": "string"}},
+    "unknowns": {"type": "array", "items": {"type": "string"}}
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Engineering: Prepare Graphify",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/engineering/graphify.ps1"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Engineering: Doctor",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/engineering/eng.ps1", "doctor"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Engineering: Verify worker runtime",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/engineering/eng.ps1", "doctor", "--live"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Engineering: Investigate task",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/engineering/eng.ps1", "investigate", "--task", "${input:engineeringTask}", "--background"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Engineering: Implement task",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/engineering/eng.ps1", "run", "--task", "${input:engineeringTask}", "--background"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Engineering: Status",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/engineering/eng.ps1", "status", "--run", "${input:engineeringRun}"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Engineering: Report",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/engineering/eng.ps1", "report", "--run", "${input:engineeringRun}"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Engineering: Resume",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/engineering/eng.ps1", "resume", "--run", "${input:engineeringRun}"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Engineering: Review current source",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/engineering/eng.ps1", "review", "--run", "${input:engineeringRun}"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Engineering: Cancel",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/engineering/eng.ps1", "cancel", "--run", "${input:engineeringRun}"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Engineering: Tooling tests",
+      "type": "process",
+      "command": "${workspaceFolder}/tools/engineering/.venv/Scripts/python.exe",
+      "args": ["-m", "pytest", "tests", "-q"],
+      "options": {"cwd": "${workspaceFolder}/tools/engineering"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Engineering: AutoGen Studio",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/engineering/experiments/autogen/studio.ps1"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {"id": "engineeringTask", "type": "promptString", "description": "JSON or YAML engineering task path", "default": "dev-docs/engineering-automation/examples/investigate-project.yaml"},
+    {"id": "engineeringRun", "type": "promptString", "description": "Existing engineering run ID"}
+  ]
+}
