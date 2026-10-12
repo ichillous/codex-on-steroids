@@ -156,7 +156,7 @@ A wide table goes inside `tbl-wrap` so it scrolls within itself on a phone inste
 
 ## 5. The scripts
 
-All take the blueprint folder as their argument. Where `python3` is not a command (some Windows setups), use `python`.
+All take the blueprint folder as their argument. Where `python3` is not a command (some Windows setups), use `python`. For browser checks, use Node.js 20 or newer and a compatible installed Playwright version. Invoke the intended Node executable explicitly when an older installation appears first on `PATH`; the scripts do not switch or install global runtimes.
 
 | Script | Needs | Does | Writes |
 |---|---|---|---|
@@ -165,7 +165,13 @@ All take the blueprint folder as their argument. Where `python3` is not a comman
 | `browser_audit.cjs <dir>` | Node, Playwright | Opens every page at every width and variant: script errors, missing files, sideways overflow, cut-off text, blank renders. Presses every button from a fresh load, follows buttons that a press reveals, records what each press shows. Options: `--only a,b`, `--no-clicks`, `--no-shots`, `--widths 1440,390`. Exit 1 on problems, 3 if no browser. | `_check/browser.json`, `_check/shots/*.jpg` |
 | `build_map.py <dir>` | Python 3 | Builds the map from the pages and the two result files. | `map.html` |
 
-Screenshots are named `page@width.jpg` and `page@width~variant.jpg`. Look at them.
+Screenshots are named `page@width.jpg` and `page@width~variant.jpg` (nested page names are URL-encoded). Look at the current files referenced in `_check/browser.json`. The map verifies each screenshot hash and never guesses a filename left by a previous run.
+
+Browser evidence includes SHA-256 fingerprints for the manifest, all blueprint source and local assets, the auditor and its helper, and the selected widths/click/screenshot options. Generated `map.html`, `_check/`, `.git/`, `node_modules/` and Python caches are excluded from source fingerprints. Evidence is conservative: changing any included file invalidates all retained pages. A partial `--only` run preserves earlier failures and pages only when these fingerprints and options match. Its exit status describes the aggregate current result, including missing pages. `--no-clicks` and `--no-shots` remain explicit coverage limits even when the command exits zero.
+
+The audit collects script, console and local response errors after reloads and control actions, through 300 ms settling windows, and at final context close. Later timers, unvisited states and inaccessible controls remain outside this observation window. Static checks inspect declared wiring; browser checks observe bounded interactions; screenshots support visual review. These layers do not establish complete functionality or production acceptance.
+
+All tools reject absolute/traversing local paths and linked descendants, including Windows junctions, symlinks and hard-linked files. The selected root must also be an ordinary directory. Reports, map files, screenshots, manifest pages and local HTTP assets are checked against this boundary. These tools are intended for a quiescent, owner-controlled blueprint folder; they do not provide a sandbox against a concurrent process replacing paths during an operation.
 
 The audit presses only what it can see. A button that no variant and no press ever reveals is reported as never visible: add a variant that shows it.
 

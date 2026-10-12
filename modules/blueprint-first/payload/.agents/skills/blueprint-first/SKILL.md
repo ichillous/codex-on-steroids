@@ -92,9 +92,11 @@ node    scripts/browser_audit.cjs  <blueprint>     # opens every page, presses e
 python3 scripts/build_map.py       <blueprint>     # rebuilds map.html from the pages and the results
 ```
 
-Run all three after every batch of pages and again at the end. Fix every `FAIL`; read every `WARN`. Then open the screenshots in `_check/shots/` and look at them, the phone-width ones included. The scripts prove that nothing is broken, which is different from proving that it looks right or reads well, and only looking does that.
+Run all three after every batch of pages and again at the end. Fix every `FAIL`; read every `WARN`. Then open the current screenshots referenced by `_check/browser.json` and look at them, the phone-width ones included. The static checker inspects source structure and declared wiring. The browser audit observes the declared widths and variants, reachable controls within its press budget, and errors through bounded settling windows. Neither proves every interaction, domain rule, accessibility requirement, or production behavior. Visual inspection and an independent review of the intended journeys are still needed.
 
-If no browser is available, the audit exits with `NO BROWSER` and says how to get one. Carry on with the static check, and say plainly in the hand-over that pages were not opened or pressed. Never report a check you did not run.
+Browser observations are bound to the current manifest, pages, local assets, auditor version and options. `--only` keeps earlier pages only when these inputs match; missing current coverage and retained failures produce a nonzero exit. Any blueprint source change conservatively invalidates all earlier pages. The map rechecks source fingerprints and screenshot hashes and labels unverified browser evidence. A generated map is a snapshot: rebuild it after edits. Linked paths, including junctions and linked report destinations, are refused so the tools stay inside the selected folder.
+
+Use Node.js 20 or newer and an installed Playwright version compatible with that Node runtime, plus its browser or an installed Chrome/Edge. If no browser is available, the audit exits with `NO BROWSER` and says how to get one. Carry on with the static check, and say plainly in the hand-over that pages were not opened or pressed. Never report a check you did not run.
 
 ### 6. Sweep for what is missing, and ripple every change
 

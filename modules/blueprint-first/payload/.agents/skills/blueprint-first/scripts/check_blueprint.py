@@ -21,6 +21,9 @@ from collections import OrderedDict, defaultdict
 from html.parser import HTMLParser
 from pathlib import Path
 
+sys.dont_write_bytecode = True
+from blueprint_safety import blueprint_root, contained, local_reference, source_files
+
 VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'}
 KINDS = ('screen', 'message', 'document', 'spoken', 'offstage', 'reference')
 GENERATED = {'map.html'}
@@ -54,6 +57,7 @@ class Page(HTMLParser):
         self.body = {}
         self.stylesheets = []
         self.scripts = []
+        self.assets = []
         self.inline_style = 0
         self.images_no_alt = 0
         self._capture = []         # open link/button records gathering their text
@@ -70,6 +74,7 @@ class Page(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         a = OrderedDict((k, (v if v is not None else '')) for k, v in attrs)
+        self.assets.extend(a[key] for key in ('src', 'poster') if a.get(key))
         if tag not in VOID:
             self.stack.append([tag, a])
         if 'id' in a and a['id']:
@@ -193,6 +198,22 @@ def stem_of(name):
 
 
 def analyze(root):
+    try:
+        root = blueprint_root(root)
+        before = source_files(root)
+        result = _analyze(root)
+        for page in result.get('pages', []):
+            if page['exists'] and page['file'].replace('\\', '/') not in before:
+                return {'fatal': 'A manifest page is inside an excluded/generated path: ' + page['file']}
+        if source_files(root) != before:
+            return {'fatal': 'Blueprint source changed during the static check; rerun it.'}
+        result['source_files'] = before
+        return result
+    except (ValueError, OSError) as exc:
+        return {'fatal': str(exc)}
+
+
+def _analyze(root):
     """Return the full analysis of a blueprint folder as a dict."""
     root = Path(root)
     fails, warns = [], []
@@ -203,7 +224,7 @@ def analyze(root):
     def warn(where, msg):
         warns.append({'where': where, 'what': msg})
 
-    mpath = root / 'blueprint.json'
+    mpath = contained(root, 'blueprint.json')
     if not mpath.exists():
         return {'fatal': 'No blueprint.json in %s. Start one with init_blueprint.py.' % root}
     try:
@@ -233,7 +254,7 @@ def analyze(root):
         counters[g] += 1
         pages[st] = {'stem': st, 'file': f, 'code': '%s%d' % (g, counters[g]), 'group': g, 'title': s.get('title', st),
                      'kind': kind, 'entry': s.get('entry', ''), 'terminal': s.get('terminal', ''),
-                     'widths': s.get('widths'), 'exists': (root / f).exists()}
+                     'widths': s.get('widths'), 'exists': contained(root, f).is_file()}
 
     on_disk = sorted(p.name for p in root.glob('*.html') if p.name not in GENERATED and not p.name.startswith('_'))
     for name in on_disk:
@@ -268,7 +289,7 @@ def analyze(root):
             continue
         doc = Page()
         try:
-            doc.feed((root / p['file']).read_text(encoding='utf-8'))
+            doc.feed(contained(root, p['file']).read_text(encoding='utf-8'))
             doc.close()
         except Exception as e:  # noqa: BLE001
             fail(p['file'], 'could not be read as HTML: %s' % e)
@@ -322,6 +343,9 @@ def analyze(root):
             if p['code'] not in open_decisions[m.group(0)]:
                 open_decisions[m.group(0)].append(p['code'])
 
+        for reference in doc.stylesheets + doc.scripts + doc.assets:
+            local_reference(root, reference)
+
         links, external = [], []
         for l in doc.links:
             href = l['href']
@@ -332,6 +356,7 @@ def analyze(root):
                 fail(where, 'link “%s” leads nowhere (%s)' % (label, href)); continue
             if EXTERNAL.match(href):
                 external.append({'label': label, 'href': href}); continue
+            local_reference(root, href)
             target, _, frag = href.partition('#')
             target = target.split('?')[0]
             links.append({'label': label, 'to': stem_of(target) if target else st, 'file': target or p['file'],
@@ -352,7 +377,7 @@ def analyze(root):
             if l['file'] in GENERATED:
                 l['to'] = None; continue
             if l['to'] not in pages:
-                if (root / l['file']).exists() and not l['file'].endswith('.html'):
+                if contained(root, l['file']).is_file() and not l['file'].endswith('.html'):
                     l['to'] = None; continue      # a download or an image
                 fail(where, 'link “%s” goes to %s, which does not exist' % (l['label'], l['file'])); l['to'] = None; continue
             if l['frag'] and pages[l['to']].get('exists') and l['frag'] not in pages[l['to']].get('ids', set()):
@@ -438,9 +463,13 @@ def main(argv):
     res = analyze(root)
     if 'fatal' in res:
         print('FAIL  ' + res['fatal']); return 1
-    out = root / '_check'
-    out.mkdir(exist_ok=True)
-    (out / 'static.json').write_text(json.dumps(res, indent=1, ensure_ascii=False), encoding='utf-8')
+    try:
+        out = contained(root, '_check')
+        destination = contained(root, '_check/static.json')
+        out.mkdir(exist_ok=True)
+        contained(root, '_check/static.json').write_text(json.dumps(res, indent=1, ensure_ascii=False), encoding='utf-8')
+    except (ValueError, OSError) as exc:
+        print('FAIL  ' + str(exc)); return 1
     if '--json' in argv:
         print(json.dumps(res, indent=1, ensure_ascii=False))
         return 1 if res['fails'] else 0

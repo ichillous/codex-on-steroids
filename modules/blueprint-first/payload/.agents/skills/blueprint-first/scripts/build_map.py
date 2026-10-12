@@ -20,6 +20,7 @@ from pathlib import Path
 sys.dont_write_bytecode = True      # leave the skill folder as it was installed
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from check_blueprint import analyze  # noqa: E402
+from blueprint_safety import blueprint_root, contained, current_browser, digest, source_files
 
 KIND_WORD = {'screen': 'Screen', 'message': 'Message', 'document': 'Document', 'spoken': 'Spoken',
              'offstage': 'Outside this project', 'reference': 'Reference'}
@@ -61,17 +62,27 @@ def e(s):
 
 
 def build(root):
-    root = Path(root)
     res = analyze(root)
     if 'fatal' in res:
         print('FAIL  ' + res['fatal']); return 1
+    root = blueprint_root(root)
     browser = None
-    bpath = root / '_check' / 'browser.json'
+    try:
+        contained(root, 'map.html')
+        bpath = contained(root, '_check/browser.json')
+    except (ValueError, OSError) as exc:
+        print('FAIL  ' + str(exc)); return 1
+    browser_status = 'No browser evidence is available.'
     if bpath.exists():
         try:
-            browser = json.loads(bpath.read_text(encoding='utf-8'))
+            candidate = json.loads(bpath.read_text(encoding='utf-8'))
+            if current_browser(root, candidate):
+                browser = candidate
+            else:
+                browser_status = 'Browser evidence is stale or unbound; rerun the browser audit. Prior observations and screenshots are not reused.'
         except Exception:  # noqa: BLE001
             browser = None
+            browser_status = 'Browser evidence could not be verified; rerun the browser audit.'
     pages = OrderedDict((p['stem'], p) for p in res['pages'])
     bpages = {p['stem']: p for p in (browser or {}).get('pages', [])}
 
@@ -85,7 +96,7 @@ def build(root):
     c = res['counts']
     start = pages.get(res['start'])
     head = ['<header class="stack">',
-            '<p class="kind">Blueprint map · built from the pages, so it always matches them</p>',
+            '<p class="kind">Blueprint map · source snapshot at generation time</p>',
             '<h1>%s</h1>' % e(res['name'] or 'Blueprint'),
             '<p class="lede">%s</p>' % e(res['summary'])]
     if res['today']:
@@ -96,12 +107,16 @@ def build(root):
         ''.join('<div class="stat"><b>%s</b>%s</div>' % (n, e(k)) for k, n in stats),
         ('<a class="btn" href="%s">Start at %s %s →</a>' % (e(start['file']), e(start['code']), e(start['title']))) if start else ''))
     if browser:
+        options = browser['evidence']['options']
+        head.append('<p class="mut sm">Browser coverage: %s. Widths: %s; control presses: %s; screenshots: %s. Observations cover a bounded run, not every possible state.</p>' % (
+            'complete for listed pages' if browser.get('complete') else 'partial; missing pages: ' + e(', '.join(browser.get('missing', []))),
+            e(options.get('widths', [])), e(options.get('clicks')), e(options.get('shots'))))
         bc = browser['counts']
         head.append('<p class="mut sm">Opened in %s: %d renders, %d buttons pressed (%d went to another page, %d changed the page, %d did nothing%s).</p>' % (
             e(browser.get('browser', 'a browser')), bc['renders'], bc['presses'], bc['navigates'], bc['changes'], bc['nothing'],
             (', %d never became visible' % bc['unreached']) if bc.get('unreached') else ''))
     else:
-        head.append('<p class="mut sm">Not yet opened in a browser: what buttons do is read from the page source, not observed.</p>')
+        head.append('<p class="mut sm">%s Buttons are described from current source; their behavior is unverified.</p>' % e(browser_status))
     head.append('</header>')
 
     # every page at a glance
@@ -166,13 +181,18 @@ def build(root):
         body.append('<div class="cards">')
         for p in mine:
             bp = bpages.get(p['stem'], {})
-            shot = next((r['shot'] for r in bp.get('renders', []) if r.get('shot') and not r.get('variant')), None)
-            if not shot:          # an earlier run may have left a screenshot even if the latest one took none
-                w = (p.get('widths') or (res['widths'] if p['kind'] in ('screen', 'message') else res['widths'][:1]))[0]
-                guess = 'shots/%s@%s.jpg' % (p['stem'], w)
-                shot = guess if (root / '_check' / guess).exists() else None
+            shot = None
+            for render in bp.get('renders', []):
+                if render.get('shot') and not render.get('variant'):
+                    try:
+                        candidate = contained(root, '_check/' + render['shot'])
+                        if candidate.is_file() and render.get('shot_sha256') == digest(candidate):
+                            shot = render['shot']
+                            break
+                    except (ValueError, OSError):
+                        pass  # invalid/unbound thumbnails are never reused
             card = ['<article class="card" id="%s">' % e(p['stem'])]
-            if shot and (root / '_check' / shot).exists():
+            if shot:
                 card.append('<a href="%s"><img loading="lazy" src="_check/%s" alt="Screenshot of %s"></a>' % (e(p['file']), e(shot), e(p['title'])))
             card.append('<div class="in"><p class="kind">%s</p><h3><span class="code">%s</span> <a href="%s">%s</a></h3>' % (
                 e(KIND_WORD.get(p['kind'], p['kind'])), e(p['code']), e(p['file']), e(p['title'])))
@@ -241,7 +261,12 @@ def build(root):
     out = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n'
            '<title>Map · %s</title>\n<style>%s</style>\n</head>\n<body>\n<div class="page">\n%s\n</div>\n</body>\n</html>\n') % (
         e(res['name'] or 'Blueprint'), CSS, '\n'.join(head + over + jr + dec + prob + body))
-    (root / 'map.html').write_text(out, encoding='utf-8')
+    try:
+        if source_files(root) != res['source_files']:
+            print('FAIL  Blueprint source changed while building the map; rerun it.'); return 1
+        contained(root, 'map.html').write_text(out, encoding='utf-8')
+    except (ValueError, OSError) as exc:
+        print('FAIL  ' + str(exc)); return 1
     print('map.html written: %d pages, %d journey(s), %d open decision(s)%s' % (
         c['pages'], c['journeys'], c['open'], '' if browser else ' (no browser results yet, so no thumbnails or observed button outcomes)'))
     return 0

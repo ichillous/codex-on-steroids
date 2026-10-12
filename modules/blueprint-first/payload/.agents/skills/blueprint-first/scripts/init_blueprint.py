@@ -8,9 +8,13 @@ with two states, a message, a reference page). The example pages are marked as s
 check fails until each one is replaced or removed, so they cannot be left in by accident.
 Requires a missing or empty target folder. Refuses linked destinations and never overwrites a file.
 """
+import html
 import json
 import sys
 from pathlib import Path
+
+sys.dont_write_bytecode = True
+from blueprint_safety import contained
 
 STARTER = Path(__file__).resolve().parent.parent / 'assets' / 'starter'
 
@@ -42,7 +46,7 @@ def main(argv):
             continue
         raw = src.read_bytes()
         if src.suffix == '.html':
-            raw = raw.decode('utf-8').replace('Project Starter', name).encode('utf-8')
+            raw = raw.decode('utf-8').replace('Project Starter', html.escape(name, quote=True)).encode('utf-8')
         elif src.name == 'blueprint.json':
             man = json.loads(raw)
             man['name'] = name
@@ -53,7 +57,7 @@ def main(argv):
     target.mkdir(parents=True, exist_ok=True)
     try:
         for filename, raw in outputs:
-            with (target / filename).open('xb') as destination:
+            with contained(target, filename).open('xb') as destination:
                 destination.write(raw)
     except FileExistsError:
         print('A destination file appeared during initialization. Existing bytes were preserved; reconcile the partial folder: %s.' % target)

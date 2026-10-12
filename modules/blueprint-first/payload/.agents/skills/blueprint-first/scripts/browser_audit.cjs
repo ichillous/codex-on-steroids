@@ -11,9 +11,11 @@
    (a confirmation, the next step) are pressed too. Buttons that never become visible are listed.
 
    Results: <blueprint-dir>/_check/browser.json. Exit 0 clean, 1 problems found, 3 no browser available.
-   A run with --only updates those pages in the results file and keeps the earlier results for the rest.
+   A --only run retains earlier pages only when sources and options match. Missing coverage fails.
+   Errors are observed through 300 ms settling windows after loads/actions and a final drain;
+   later timers, unvisited states and production behavior remain outside this bounded check.
 
-   Needs Node and Playwright (playwright, playwright-core or @playwright/test, installed in the project,
+   Use Node 20+ and a compatible Playwright (playwright, playwright-core or @playwright/test, installed in the project,
    beside this script, or globally). It uses Playwright's own browser if one is installed, otherwise an
    installed Chrome or Edge, otherwise the binary named by BLUEPRINT_CHROME. */
 'use strict';
@@ -21,11 +23,13 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const { execSync } = require('child_process');
+const { blueprintRoot, contained, digest, sourceFiles, equal } = require('./blueprint_safety.cjs');
+const SETTLE_MS = 300;
 
 const argv = process.argv.slice(2);
 const dirArg = argv.find((a) => !a.startsWith('--'));
 if (!dirArg) { console.log('usage: node browser_audit.cjs <blueprint-dir> [--only a,b] [--no-clicks] [--no-shots] [--widths 1440,390]'); process.exit(2); }
-const root = path.resolve(dirArg);
+const root = blueprintRoot(dirArg);
 const opt = (name) => { const i = argv.indexOf(name); return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : null; };
 const ONLY = (opt('--only') || '').split(',').map((s) => s.trim().replace(/\.html$/, '')).filter(Boolean);
 const NO_CLICKS = argv.includes('--no-clicks');
@@ -57,11 +61,15 @@ async function launch(pw) {
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.gif': 'image/gif',
   '.woff2': 'font/woff2', '.woff': 'font/woff', '.pdf': 'application/pdf', '.ico': 'image/x-icon' };
+let servedSources = new Set();
 const server = http.createServer((req, res) => {
-  let rel;
-  try { rel = decodeURIComponent(req.url.split('?')[0]); } catch (e) { rel = '/'; }
-  const file = path.join(root, path.normalize(rel).replace(/^([/\\]|\.\.[/\\])+/, ''));
-  if (!file.startsWith(root)) { res.writeHead(403); res.end(); return; }
+  let file;
+  try {
+    const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\//, '');
+    file = contained(root, rel);
+    if (rel !== 'map.html' && !servedSources.has(rel.replace(/\\/g, '/'))) throw new Error('not a blueprint source');
+    if (!fs.statSync(file).isFile()) throw new Error('not a file');
+  } catch (e) { res.writeHead(e.code === 'ENOENT' ? 404 : 403); res.end('not available'); return; }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); res.end('not found'); return; }
     res.writeHead(200, { 'content-type': TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream', 'cache-control': 'no-store' });
@@ -163,8 +171,30 @@ function variantsOf(html) {
 
 (async () => {
   let man;
-  try { man = JSON.parse(fs.readFileSync(path.join(root, 'blueprint.json'), 'utf8')); }
+  try { man = JSON.parse(fs.readFileSync(contained(root, 'blueprint.json'), 'utf8')); }
   catch (e) { console.log('FAIL  cannot read blueprint.json in ' + root + ': ' + e.message); process.exit(1); }
+  const widthsAll = (opt('--widths') || '').split(',').filter(Boolean).map(Number);
+  const defWidths = widthsAll.length ? widthsAll : (Array.isArray(man.widths) && man.widths.length ? man.widths : [1440, 390]);
+  const validWidths = (ws) => Array.isArray(ws) && ws.length && ws.every((w) => Number.isInteger(w) && w > 0 && w <= 10000);
+  if (!validWidths(defWidths)) throw new Error('Widths must be positive integers up to 10000.');
+  const groupCount = {};
+  const allScreens = (man.screens || []).map((s) => {
+    contained(root, s.file);
+    if (s.widths && !validWidths(s.widths)) throw new Error('Invalid screen widths: ' + s.file);
+    groupCount[s.group] = (groupCount[s.group] || 0) + 1;
+    return Object.assign({}, s, { stem: String(s.file).replace(/\.html$/, ''), code: s.group + groupCount[s.group], kind: s.kind || 'screen' });
+  });
+  if (!allScreens.length || new Set(allScreens.map((s) => s.stem)).size !== allScreens.length) throw new Error('List distinct blueprint screens before auditing.');
+  if (ONLY.some((stem) => !allScreens.some((s) => s.stem === stem))) throw new Error('--only names a page absent from the manifest.');
+  const screens = allScreens.filter((s) => !ONLY.length || ONLY.includes(s.stem));
+  const outFile = contained(root, '_check/browser.json');
+  const shotsDir = contained(root, '_check/shots');
+  const evidence = { version: 1, files: sourceFiles(root), auditor: digest(__filename), helper: digest(path.join(__dirname, 'blueprint_safety.cjs')),
+    options: { widths: defWidths, clicks: !NO_CLICKS, shots: !NO_SHOTS, settle_ms: SETTLE_MS } };
+  for (const s of allScreens) {
+    if (fs.existsSync(contained(root, s.file)) && !Object.prototype.hasOwnProperty.call(evidence.files, s.file.replace(/\\/g, '/'))) throw new Error('Manifest page uses an excluded/generated path: ' + s.file);
+  }
+  servedSources = new Set(Object.keys(evidence.files));
   const pw = loadPlaywright();
   if (!pw) {
     console.log('NO BROWSER  Playwright is not installed where this script can find it.');
@@ -181,27 +211,18 @@ function variantsOf(html) {
   }
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = 'http://127.0.0.1:' + server.address().port + '/';
-  const widthsAll = (opt('--widths') || '').split(',').map(Number).filter(Boolean);
-  const defWidths = widthsAll.length ? widthsAll : (Array.isArray(man.widths) && man.widths.length ? man.widths : [1440, 390]);
-  const shotsDir = path.join(root, '_check', 'shots');
-  fs.mkdirSync(shotsDir, { recursive: true });
-
+  fs.mkdirSync(contained(root, '_check/shots'), { recursive: true });
   const fails = [], warns = [], pagesOut = [];
   const counts = { renders: 0, presses: 0, navigates: 0, changes: 0, nothing: 0, unavailable: 0, unreached: 0 };
-  const groupCount = {};
-  const screens = (man.screens || []).map((s) => {
-    groupCount[s.group] = (groupCount[s.group] || 0) + 1;
-    return Object.assign({}, s, { stem: String(s.file).replace(/\.html$/, ''), code: s.group + groupCount[s.group], kind: s.kind || 'screen' });
-  }).filter((s) => !ONLY.length || ONLY.includes(s.stem));
 
   for (const s of screens) {
-    const file = path.join(root, s.file);
+    const file = contained(root, s.file);
     const where = s.code + ' ' + s.file;
+    const rec = { stem: s.stem, code: s.code, renders: [], controls: [] };
+    pagesOut.push(rec);
     if (!fs.existsSync(file)) { fails.push({ where, what: 'file does not exist' }); continue; }
     const variants = variantsOf(fs.readFileSync(file, 'utf8'));
     const widths = Array.isArray(s.widths) && s.widths.length ? s.widths : (['screen', 'message'].includes(s.kind) ? defWidths : [defWidths[0]]);
-    const rec = { stem: s.stem, code: s.code, renders: [], controls: [] };
-    pagesOut.push(rec);
     const everything = new Map(), pressedPaths = new Set();      // every button in the page, and the ones we reached
 
     for (const w of widths) for (const v of variants) {
@@ -214,15 +235,19 @@ function variantsOf(html) {
       const url = base + s.file + (v ? '?' + v : '');
       const tag = '@' + w + (v ? '~' + v.replace(/[^\w-]+/g, '-') : '');
       const at = where + ' ' + tag;
+      const drain = (stage) => {
+        [...new Set(errors.splice(0))].filter((e) => !/favicon/.test(e)).forEach((e) => fails.push({ where: at, what: stage + ': ' + e }));
+      };
+      const settle = async (stage) => { await page.waitForTimeout(SETTLE_MS); drain(stage); };
       let m = null;
       try {
         await page.goto(url, { waitUntil: 'load', timeout: 20000 });
         await page.addStyleTag({ content: '[data-blueprint-ui]{display:none!important}' });
-        await page.waitForTimeout(120);
+        await settle('initial render');
         m = await page.evaluate(IN_PAGE.measure);
       } catch (e) { fails.push({ where: at, what: 'did not open: ' + String(e.message || e).split('\n')[0].slice(0, 160) }); }
       counts.renders++;
-      [...new Set(errors)].filter((e) => !/favicon/.test(e)).forEach((e) => fails.push({ where: at, what: e }));
+      drain('initial render');
       if (m) {
         if (m.over) fails.push({ where: at, what: 'wider than the window, so it scrolls sideways' + (m.wide.length ? ': ' + m.wide.join(', ') : '') });
         if (m.words < 20) fails.push({ where: at, what: 'renders almost empty (' + m.words + ' characters of text)' });
@@ -231,14 +256,14 @@ function variantsOf(html) {
         for (const l of m.links) {
           if (!l.href.startsWith(base)) continue;
           const target = decodeURIComponent(l.href.slice(base.length).split(/[?#]/)[0]);
-          if (target && target !== 'map.html' && !fs.existsSync(path.join(root, target))) fails.push({ where: at, what: 'link “' + l.label + '” goes to ' + target + ', which does not exist' });
+          if (target && target !== 'map.html' && !fs.existsSync(contained(root, target))) fails.push({ where: at, what: 'link “' + l.label + '” goes to ' + target + ', which does not exist' });
         }
         let shot = null;
         if (!NO_SHOTS) {
-          shot = s.stem + tag + '.jpg';
-          try { await page.screenshot({ path: path.join(shotsDir, shot), fullPage: true, type: 'jpeg', quality: 72 }); } catch (e) { shot = null; }
+          shot = encodeURIComponent(s.stem) + tag + '.jpg';
+          try { await page.screenshot({ path: contained(root, '_check/shots/' + shot), fullPage: true, type: 'jpeg', quality: 72 }); } catch (e) { shot = null; }
         }
-        rec.renders.push({ width: w, variant: v, height: m.height, overflow: m.over, shot: shot ? 'shots/' + shot : null });
+        rec.renders.push({ width: w, variant: v, height: m.height, overflow: m.over, shot: shot ? 'shots/' + shot : null, shot_sha256: shot ? digest(contained(root, '_check/shots/' + shot)) : null });
       }
 
       /* Press every button once, each from a fresh load. A press that changes the page may reveal
@@ -266,13 +291,14 @@ function variantsOf(html) {
           const out = { label: c.label, variant: v, after: seq.map((x) => x.label), outcome: '', to: null, note: '', shows: '' };
           rec.controls.push(out);
           counts.presses++;
+          let onDialog = null;
           try {
             await page.goto(url, { waitUntil: 'load', timeout: 20000 });
-            await page.waitForTimeout(60);
+            await settle('reload before ' + c.label);
             let dialog = null;
-            const onDialog = (d) => { dialog = d.type(); d.dismiss().catch(() => {}); };
+            onDialog = (d) => { dialog = d.type(); d.dismiss().catch(() => {}); };
             page.on('dialog', onDialog);
-            for (const step of seq) { await prepare(step); await page.locator(step.path).first().click({ timeout: 2500 }); await page.waitForTimeout(160); }
+            for (const step of seq) { await prepare(step); await page.locator(step.path).first().click({ timeout: 2500 }); await settle('replay ' + step.label); }
             const visibleBefore = (await page.evaluate(IN_PAGE.controls, false)).map((x) => x.path);
             const note = await prepare(c);
             if (note === false) {
@@ -283,8 +309,9 @@ function variantsOf(html) {
             out.note = note;
             const before = await page.evaluate(IN_PAGE.signature);
             await page.locator(c.path).first().click({ timeout: 2500 });
-            await page.waitForTimeout(260);
+            await settle('press ' + c.label);
             await page.waitForLoadState('load').catch(() => {});
+            await settle('navigation after ' + c.label);
             const after = await page.evaluate(IN_PAGE.signature);
             page.off('dialog', onDialog);
             const bUrl = JSON.parse(before).url.split(/[?#]/)[0], aUrl = JSON.parse(after).url.split(/[?#]/)[0];
@@ -304,11 +331,16 @@ function variantsOf(html) {
           } catch (e) {
             out.outcome = 'could not be pressed';
             fails.push({ where, what: 'button “' + c.label + '” could not be pressed: ' + String(e.message || e).split('\n')[0].slice(0, 140) });
+          } finally {
+            if (onDialog) page.off('dialog', onDialog);
+            await settle('after control ' + c.label);
           }
         }
         if (queue.length) warns.push({ where, what: 'more than 60 buttons on this page; ' + queue.length + ' were not pressed' });
       }
+      await settle('final observation');
       await ctx.close();
+      drain('context close');
     }
     if (!NO_CLICKS) {
       const missed = [...everything].filter(([p]) => !pressedPaths.has(p)).map(([, label]) => '“' + label + '”');
@@ -333,29 +365,38 @@ function variantsOf(html) {
   const foldedFails = fold(fails), foldedWarns = fold(warns);
   fails.length = 0; foldedFails.forEach((f) => fails.push(f));
   warns.length = 0; foldedWarns.forEach((f) => warns.push(f));
-  const result = { browser: 'Chromium ' + version, widths: defWidths, counts, pages: pagesOut, fails, warns };
-  const outFile = path.join(root, '_check', 'browser.json');
+  const result = { browser: 'Chromium ' + version, widths: defWidths, evidence, counts, pages: pagesOut, fails: [...fails], warns: [...warns] };
+  const order = allScreens.map((s) => s.stem);
   if (ONLY.length && fs.existsSync(outFile)) {
-    /* A partial run replaces only the pages it opened and keeps earlier results for the rest. */
     try {
-      const old = JSON.parse(fs.readFileSync(outFile, 'utf8'));
-      const mine = new Set(pagesOut.map((p) => p.stem)), myCodes = pagesOut.map((p) => p.code + ' ');
-      const order = (man.screens || []).map((x) => String(x.file).replace(/\.html$/, ''));
-      const keep = (list) => (list || []).filter((f) => !myCodes.some((c) => f.where.startsWith(c)));
-      result.pages = (old.pages || []).filter((p) => !mine.has(p.stem) && order.includes(p.stem)).concat(pagesOut).sort((a, b) => order.indexOf(a.stem) - order.indexOf(b.stem));
-      result.fails = keep(old.fails).concat(fails);
-      result.warns = keep(old.warns).concat(warns);
-      const all = result.pages.flatMap((p) => p.controls), n = (o) => all.filter((c) => c.outcome === o).length;
-      result.counts = { renders: result.pages.reduce((t, p) => t + p.renders.length, 0), presses: all.length, navigates: n('navigates'), nothing: n('nothing'),
-        unavailable: n('unavailable'), unreached: result.pages.reduce((t, p) => t + (p.unreached || 0), 0) };
-      result.counts.changes = all.length - result.counts.navigates - result.counts.nothing - result.counts.unavailable - n('could not be pressed');
-    } catch (e) { /* unreadable earlier results: write this run alone */ }
+      const old = JSON.parse(fs.readFileSync(contained(root, '_check/browser.json'), 'utf8'));
+      if (equal(old.evidence, evidence)) {
+        const mine = new Set(screens.map((p) => p.stem)), myCodes = screens.map((p) => p.code + ' ');
+        const keep = (list) => (list || []).filter((f) => f.where !== 'coverage' && !myCodes.some((c) => f.where.startsWith(c)));
+        result.pages = (old.pages || []).filter((p) => !mine.has(p.stem) && order.includes(p.stem)).concat(pagesOut).sort((a, b) => order.indexOf(a.stem) - order.indexOf(b.stem));
+        result.fails = keep(old.fails).concat(fails);
+        result.warns = keep(old.warns).concat(warns);
+      } else {
+        result.warns.push({ where: 'coverage', what: 'Previous browser evidence is stale or has different audit options; earlier pages were discarded.' });
+      }
+    } catch (e) { result.warns.push({ where: 'coverage', what: 'Previous browser evidence could not be read; earlier pages were discarded.' }); }
   }
-  fs.writeFileSync(outFile, JSON.stringify(result, null, 1));
+  result.missing = order.filter((stem) => !result.pages.some((p) => p.stem === stem));
+  if (result.missing.length) result.fails.push({ where: 'coverage', what: 'Pages have no current browser evidence: ' + result.missing.join(', ') });
+  if (!equal(evidence.files, sourceFiles(root))) {
+    result.fails.push({ where: 'coverage', what: 'Blueprint source changed during the audit; rerun all pages.' });
+    result.evidence = null; // an interrupted/moving-source run is never reusable
+  }
+  result.complete = !result.missing.length && !!result.evidence;
+  const all = result.pages.flatMap((p) => p.controls), n = (o) => all.filter((c) => c.outcome === o).length;
+  result.counts = { renders: result.pages.reduce((t, p) => t + p.renders.length, 0), presses: all.length, navigates: n('navigates'), nothing: n('nothing'),
+    unavailable: n('unavailable'), unreached: result.pages.reduce((t, p) => t + (p.unreached || 0), 0) };
+  result.counts.changes = all.length - result.counts.navigates - result.counts.nothing - result.counts.unavailable - n('could not be pressed');
+  fs.writeFileSync(contained(root, '_check/browser.json'), JSON.stringify(result, null, 1));
   console.log((man.name || 'Blueprint') + ': ' + pagesOut.length + (pagesOut.length === 1 ? ' page' : ' pages') + ' opened, ' + counts.renders + ' renders, ' + counts.presses + ' buttons pressed (' +
     counts.navigates + ' went to another page, ' + counts.changes + ' changed the page, ' + counts.unavailable + ' unavailable, ' + counts.nothing + ' did nothing' + (counts.unreached ? '; ' + counts.unreached + ' never became visible' : '') + ')');
-  fails.forEach((f) => console.log('FAIL  ' + f.where + ': ' + f.what));
-  warns.forEach((f) => console.log('WARN  ' + f.where + ': ' + f.what));
-  console.log(fails.length + ' to fix, ' + warns.length + ' to look at.' + (NO_SHOTS ? '' : ' Screenshots are in ' + path.join(dirArg, '_check', 'shots') + ' — look at them; a clean run does not mean the pages look right.'));
-  process.exit(fails.length ? 1 : 0);
+  result.fails.forEach((f) => console.log('FAIL  ' + f.where + ': ' + f.what));
+  result.warns.forEach((f) => console.log('WARN  ' + f.where + ': ' + f.what));
+  console.log('Current run: ' + fails.length + ' failures. Aggregate: ' + result.fails.length + ' to fix, ' + result.warns.length + ' to look at.' + (NO_SHOTS ? '' : ' Screenshots are in ' + path.join(dirArg, '_check', 'shots') + ' — look at them; a clean run does not mean the pages look right.'));
+  process.exit(result.fails.length ? 1 : 0);
 })().catch((e) => { console.log('FAIL  the audit itself crashed: ' + (e && e.stack || e)); try { server.close(); } catch (x) { /* closed */ } process.exit(1); });
