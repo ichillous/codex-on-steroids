@@ -5,6 +5,7 @@ param(
     [string]$Codex = 'codex',
     [string]$GraphifyPython,
     [string[]]$GraphifyScope = @(),
+    [ValidateSet('idea-research', 'blueprint-first')][string[]]$Modules = @(),
     [string]$Model,
     [ValidateRange(30,7200)][int]$TimeoutSeconds = 600,
     [switch]$Static,
@@ -17,6 +18,7 @@ $ErrorActionPreference = 'Stop'
 if ($LASTEXITCODE -ne 0) { throw 'Python 3.11 or newer is required.' }
 $setupArguments = @('-B', (Join-Path $PSScriptRoot 'scripts/install.py'), '--project-root', $ProjectRoot, '--codex', $Codex, '--timeout', "$TimeoutSeconds")
 if ($Model) { $setupArguments += @('--model', $Model) }
+foreach ($moduleName in $Modules) { $setupArguments += @('--module', $moduleName) }
 if ($Static) { $setupArguments += '--static' }
 if ($PlanOnly) { $setupArguments += '--plan-only' }
 if ($Rollback) { $setupArguments += @('--rollback', $Rollback) }

@@ -1,0 +1,16 @@
+[
+  {
+    "source_id": "S01",
+    "title": "Replace with actual opened source title",
+    "publisher": "Actual author or publisher",
+    "url": "https://example.org/replace-with-canonical-source",
+    "source_type": "official documentation",
+    "published_or_updated": null,
+    "retrieved_at": "REPLACE_WITH_ACTUAL_TIMESTAMP",
+    "version_or_commit": null,
+    "access_status": "not_yet_opened",
+    "source_family": "original source origin",
+    "locator": "Exact section, page, line, or issue comment",
+    "observation": "Template only. Replace with observed evidence and limits."
+  }
+]

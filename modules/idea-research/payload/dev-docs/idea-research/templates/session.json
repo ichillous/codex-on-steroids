@@ -1,0 +1,22 @@
+{
+  "session_id": "REPLACE_WITH_ACTUAL_FOLDER_ID",
+  "idea_name": "Original display name",
+  "created_at": "REPLACE_WITH_ACTUAL_TIMESTAMP",
+  "timezone": "Actual timezone",
+  "input_path": "Original absolute workspace path",
+  "input_sha256": "REPLACE_WITH_OBSERVED_SHA256",
+  "scope": "Decision, audiences, permissions, exclusions and acceptance criteria",
+  "route": "not_selected",
+  "route_reason": "Verify actual prerequisites and runtime before selection",
+  "model": "not_verified",
+  "tools": [],
+  "workers": [],
+  "run_ids": [],
+  "graph_status": "not_checked",
+  "graph_exception": null,
+  "status": "in_progress",
+  "status_reason": "Template only; use initializer for a real session",
+  "completed_checks": [],
+  "blocked_items": [],
+  "next_resume_action": "Resolve actual workspace/session and reconcile any active operation"
+}

@@ -130,12 +130,14 @@ def test_no_git_does_not_register_fake_checkout(tmp_path):
 
 
 def test_payload_has_no_machine_secrets_or_venvs():
-    names = [p.relative_to(install.KIT / "payload").as_posix() for p in (install.KIT / "payload").rglob("*") if p.is_file()]
-    assert names
-    assert not any(x in name.split("/") for name in names for x in (".venv", ".venv-studio", "__pycache__", "auth.json", "hooks.json", ".engineering-state"))
-    for name in names:
-        text = (install.KIT / "payload" / name).read_text(encoding="utf-8-sig")
-        assert not re.search(r"[A-Za-z]:[\\/]Users[\\/][^\\/\s]+", text)
+    roots = [install.KIT / "payload", *sorted((install.KIT / "modules").glob("*/payload"))]
+    for root in roots:
+        names = [p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()]
+        assert names
+        assert not any(x in name.split("/") for name in names for x in (".venv", ".venv-studio", ".venv-graphify", "__pycache__", "auth.json", "hooks.json", ".engineering-state"))
+        for name in names:
+            text = (root / name).read_text(encoding="utf-8-sig")
+            assert not re.search(r"[A-Za-z]:[\\/]Users[\\/][^\\/\s]+", text)
 
 
 def test_script_path_argument_does_not_depend_on_cwd(project, tmp_path):

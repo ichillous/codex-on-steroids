@@ -1,0 +1,29 @@
+{
+  "name": "Project Starter",
+  "summary": "One sentence: what this is and who it is for.",
+  "today": "",
+  "start": "home.html",
+  "widths": [1440, 390],
+  "groups": [
+    { "key": "A", "title": "Public", "who": "Visitor" },
+    { "key": "M", "title": "Messages we send", "who": "Anyone who joined" },
+    { "key": "R", "title": "Reference", "who": "The team" }
+  ],
+  "screens": [
+    { "file": "home.html", "group": "A", "title": "Home", "kind": "screen" },
+    { "file": "join.html", "group": "A", "title": "Join the list", "kind": "screen" },
+    { "file": "welcome-email.html", "group": "M", "title": "Email: you are on the list", "kind": "message",
+      "entry": "Sent the moment someone joins the list" },
+    { "file": "rules.html", "group": "R", "title": "Roles, states and rules", "kind": "reference",
+      "entry": "A reference page for the team, opened from the map" }
+  ],
+  "journeys": [
+    { "title": "A visitor joins the list", "who": "Visitor",
+      "steps": ["home", "join", { "offstage": "An email arrives within a minute" }, "welcome-email", "home"] }
+  ],
+  "assumptions": [
+    { "decision": "Joining needs a name and an email address, nothing else.",
+      "because": "The fewest fields that still let the team write to people by name." }
+  ],
+  "retired": []
+}

@@ -1,0 +1,25 @@
+{
+  "experiment_id": "E01",
+  "status": "not_run",
+  "kind": "Replace with exact proposed experiment type",
+  "hypothesis": "Decision-critical hypothesis and linked criterion",
+  "linked_claims": ["C01"],
+  "protocol": {
+    "baseline": "Define baseline before execution",
+    "treatment": "Define intervention before execution",
+    "controlled_variables": [],
+    "measures": [],
+    "interpretation": "Define success, failure and uninformative outcomes",
+    "expected_writes": [],
+    "network_effects": [],
+    "dependencies": [],
+    "stopping_rule": "Define bounded execution and sample rule"
+  },
+  "environment": "Replace with actual environment, versions, model/harness settings and sample details",
+  "commands": [],
+  "observations": [],
+  "result": "Not executed; this is a template",
+  "limitations": "No evidence produced until actual execution; define measurement limits",
+  "reason": "Template awaiting a scoped experiment",
+  "reproduction": "Replace with exact commands, cwd and dependency requirements"
+}

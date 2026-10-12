@@ -11,6 +11,7 @@
 <p align="center">
   <a href="#quick-start">Get started</a> &nbsp; · &nbsp;
   <a href="#how-it-works">See the workflow</a> &nbsp; · &nbsp;
+  <a href="#optional-research-and-blueprint-modules">Explore optional modules</a> &nbsp; · &nbsp;
   <a href="#graphify-and-existing-tools">Explore Graphify</a> &nbsp; · &nbsp;
   <a href="payload/dev-docs/engineering-automation/portable-guide.md">Read the guide</a> &nbsp; · &nbsp;
   <a href="VERIFICATION.md">Check the evidence</a>
@@ -22,7 +23,7 @@
 |---|---|---|
 | Tailored project context and Graphify relationships, checked against current source. | Six engineering roles, scoped assignments and a persistent LangGraph coordinator. | Selected validation checks, an independent reviewer and explicit unmet criteria. |
 
-Use it for focused Codex work, a durable engineering job, or a separate AutoGen experiment. Setup supplies the tooling; you choose which route to start.
+Use it for focused Codex work, a durable engineering job, or a separate AutoGen experiment. Add the optional research and blueprint modules when you want to assess an idea and review its experience before investing in implementation. Setup supplies the tooling; you choose which route to start.
 
 ## Quick start
 
@@ -85,6 +86,12 @@ Setup prepares the project once. Each task then follows the route you select:
 flowchart LR
     Setup["Setup.ps1<br/>Inspect and tailor the project"] --> Tools["Project instructions and roles<br/>Graphify and isolated environments"]
     Tools --> Ready["Readiness checks<br/>Fresh Codex session"]
+    Ready -.-> Research["Optional idea research<br/>Evidence + bounded investment decision"]
+    Research -.-> Blueprint["Optional blueprint<br/>Journeys + states + working prototype"]
+    Ready -.-> Blueprint
+    Blueprint --> Approval["Owner reviews and approves implementation"]
+    Approval --> Focused
+    Approval --> Team
     Ready --> Focused["Focused Codex work<br/>Graph + source + relevant checks"]
     Ready --> Team["Explicit LangGraph job<br/>Investigate → plan → implement if requested"]
     Team --> Review["Selected checks + independent review<br/>Report the outcome and remaining gaps"]
@@ -95,6 +102,8 @@ flowchart LR
 | Route | Choose it for | What starts it |
 |---|---|---|
 | **Focused Codex work** | A scoped task that fits the regular Codex workflow. | Your task in a trusted project session. |
+| **Idea research** | Deciding whether an idea deserves a bounded next investment. | Explicitly use `$idea-research` after installing its module. |
+| **Blueprint first** | Reviewing journeys, states, rules and a working experience before implementation. | Explicitly use `$blueprint-first` after installing its module. |
 | **Durable engineering job** | Work that needs tracked specialist assignments, validation, review and recovery. | An explicit runner CLI command, VS Code task or engineering MCP call. |
 | **AutoGen experiment** | Comparing a single analyst with an analyst/reviewer team. | Separately launching Studio and configuring a compatible API provider. |
 
@@ -103,7 +112,7 @@ Opening an ordinary chat does not automatically start the coordinator or AutoGen
 <details>
 <summary><strong>Expand the full end-to-end lifecycle: setup, team execution and recovery</strong></summary>
 
-The default setup prepares the project once. After readiness checks, choose ordinary Codex work, an explicitly started durable engineering job, or a separate AutoGen experiment.
+The default setup prepares the project once. After readiness checks, choose ordinary Codex work, an explicitly started durable engineering job, or a separate AutoGen experiment. Installed optional modules add research and blueprint routes; their handoffs are deliberate choices.
 
 ```mermaid
 flowchart TB
@@ -111,7 +120,7 @@ flowchart TB
         Copy["Copy the kit or select ProjectRoot"] --> RunSetup["Run Setup.ps1"]
         RunSetup --> Discover["Inspect Git roots, instructions, manifests<br/>and bounded source/test samples"]
         Discover --> Onboard["Read-only Codex onboarding<br/>or explicitly selected Static analysis"]
-        Onboard --> Install["Validate analysis and install project context,<br/>skills, roles, MCP registration and VS Code tasks"]
+        Onboard --> Install["Validate analysis and install project context,<br/>skills, roles, MCP registration and VS Code tasks<br/>Include explicitly selected optional modules"]
         Install --> Publication{"Project graph publication?"}
         Publication -->|"Valid existing or legacy graph"| Reuse["Validate and preserve the graph"]
         Publication -->|"Missing"| Scope["Validate eligible code scope<br/>Require explicit narrowing for a large project"]
@@ -127,6 +136,16 @@ flowchart TB
     end
 
     Ready --> Route{"Choose how to work"}
+    subgraph Discovery["Optional research and design before implementation"]
+        Research["Explicit idea-research request<br/>Preserve input, investigate evidence and test bounded claims"]
+        Research --> Investment["Independent review and bounded investment verdict<br/>Save local report, sources and session evidence"]
+        Investment -.-> Blueprint["Explicit blueprint-first request<br/>Model journeys, states, rules and a working experience"]
+        Blueprint --> Owner{"Owner approves implementation?"}
+        Owner -->|"Yes: authorized scope"| Route
+        Owner -->|"Revise or defer"| DesignReview["Revise the blueprint or keep the decision open"]
+    end
+    Route -->|"Idea research module"| Research
+    Route -->|"Blueprint module"| Blueprint
     Route -->|"Focused task"| Focused["Regular Codex workflow<br/>Consult Graphify, verify source and run relevant checks"]
     Focused --> FocusedResult["Review the requested outcome<br/>Report changes, evidence and remaining gaps"]
 
@@ -167,7 +186,41 @@ Graphify setup uses local code extraction; an existing graph still needs task-sp
 
 Investigate mode goes from planning directly to independent review. Implementation mode adds changes, selected checks, and a bounded correction loop. Checkpoints preserve job state; safe recovery still requires inspecting active operations and existing edits. AutoGen has its own model, credentials and execution path; launching it is a separate choice from starting a LangGraph job.
 
+Research sessions use local files and manual recovery. The research role templates do not register extra native agents or start a LangGraph job. A blueprint must receive its owner's approval before implementation starts; neither optional skill starts the engineering coordinator automatically.
+
 </details>
+
+## Optional research and blueprint modules
+
+**Go from a question to a reviewed experience, then into engineering.** Both modules are included in this repository and installed only when selected. You can add either one to an existing toolkit installation, or install both together:
+
+```powershell
+& 'C:\Toolkits\engineering-starter-kit\Setup.ps1' -ProjectRoot 'C:\Projects\MyApp' -Modules idea-research,blueprint-first
+
+# Install the same module files with static analysis, without model calls or downloads.
+& 'C:\Toolkits\engineering-starter-kit\Setup.ps1' -ProjectRoot 'C:\Projects\MyApp' -Modules idea-research,blueprint-first -Static -SkipDependencies
+```
+
+| Module | What you get | Use it when |
+|---|---|---|
+| [`idea-research`](modules/idea-research/README.md) | Research skill, workflow and prompt, six assignment templates, evidence schemas, report templates, and the four `tools/research` Python utilities. | You want traceable evidence, experiments and an independently reviewed decision about the next investment. |
+| [`blueprint-first`](modules/blueprint-first/README.md) | Planning skill, blueprint initializer/checker/map utilities, browser audit, references, and a complete sample HTML/CSS/JavaScript experience. | You want to examine roles, journeys, states, rules and touchpoints before approving implementation. |
+
+After installation, open a fresh Codex session in the destination project and explicitly choose a skill:
+
+```text
+Use $idea-research to investigate the supplied idea document.
+Agree on the investment question and evidence requirements before starting.
+```
+
+```text
+Use $blueprint-first to blueprint the requested product or feature.
+Keep unresolved owner decisions visible and review the experience before implementation.
+```
+
+Research utilities use Python's standard library. Blueprint initialization and structural checks use Python; its browser audit additionally needs Node.js, a compatible Playwright package, and an available browser. Setup copies that audit but does not install its browser dependencies. See the module guides for commands and prerequisites.
+
+Rerunning setup retains previously installed module selections. Existing independently owned skills are preserved; differing unowned workflow, guide or tool files stop installation for review. Module changes share the base installer's backups, conflict checks and configuration rollback. Local research inputs, reports and diagnostics can contain private information; keep them local and review any material you choose to publish. The repository bundles reusable source and synthetic starter assets.
 
 ## Setup behavior
 
@@ -198,6 +251,9 @@ For a missing graph, default extraction excludes sensitive files, dependencies, 
 | `graphify-out/` | Destination code graph, report, HTML visualization and provenance when generated during setup |
 | `tools/engineering/experiments/autogen/` | Isolated AutoGen Studio launcher, team experiments and comparison tools |
 | `dev-docs/engineering-automation/` | Operating, troubleshooting, architecture and portable-use guides |
+| `.agents/skills/idea-research/`, `.codex/research-roles/`, `tools/research/` | Optional research module: evidence workflow, assignment templates and local session/report utilities |
+| `dev-docs/idea-research/`, `.codex/workflows/idea-research.md`, `.codex/prompts/research-idea.md` | Optional research guide, schemas, templates and entry points |
+| `.agents/skills/blueprint-first/` | Optional blueprint module: skill, utilities, references and sample experience |
 
 The kit carries the existing **GPT-6 Astra / ultra** specialist configuration. Model availability must be confirmed for the destination account with `tools\engineering\eng.ps1 doctor --live`. `-Model` changes the onboarding model only. It does not rewrite the worker roles or change your global model preferences.
 
@@ -267,6 +323,9 @@ The examples below use the copied-kit layout. When invoking a centrally stored k
 
 # Reuse an existing Graphify interpreter and select the initial code scope.
 .\engineering-starter-kit\Setup.ps1 -GraphifyPython 'C:\Tools\Graphify\Scripts\python.exe' -GraphifyScope 'src','tests'
+
+# Add optional discovery and design routes; previously selected modules persist.
+.\engineering-starter-kit\Setup.ps1 -Modules idea-research,blueprint-first
 ```
 
 Default AI failure stops setup and retains the prompt and diagnostics. It does not silently substitute static analysis. Fix the reported CLI/login/model/permission problem and rerun, or explicitly choose `-Static`.
@@ -307,4 +366,6 @@ See [VERIFICATION.md](VERIFICATION.md) for checks actually performed on this kit
 | [Architecture](payload/dev-docs/engineering-automation/architecture.md) | Trace components, state and worker responsibilities. |
 | [Troubleshooting](payload/dev-docs/engineering-automation/troubleshooting.md) | Resolve setup, graph, tool and recovery problems. |
 | [AutoGen lab](payload/tools/engineering/experiments/autogen/README.md) | Configure the separate experiment environment. |
+| [Idea research module](modules/idea-research/README.md) | Assess an idea with attributable evidence and local research sessions. |
+| [Blueprint first module](modules/blueprint-first/README.md) | Build and review an experience before approving implementation. |
 | [Verification record](VERIFICATION.md) | Review observed checks and the limits of their evidence. |

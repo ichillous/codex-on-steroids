@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roles, states and rules</title>
+<link rel="stylesheet" href="blueprint.css">
+</head>
+<body>
+<!-- Starter page: replace it with your own. Reference pages hold what no single screen can:
+     who may do what, the states a thing moves through, and each rule stated once. -->
+<main>
+<section class="sec"><div class="wrap stack loose">
+  <div class="stack tight">
+    <p class="eyebrow">Reference</p>
+    <h1>Roles, states and rules</h1>
+    <p class="lede">Each rule is written once, here. Every screen that shows it uses the same words.</p>
+  </div>
+
+  <div class="stack">
+    <h2>Who can do what</h2>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Action</th><th>Visitor</th><th>On the list</th><th>Team</th></tr></thead>
+      <tbody>
+        <tr><td>Read the home page</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td>Join the list</td><td>Yes</td><td>Already joined</td><td>Yes</td></tr>
+        <tr><td>See who joined</td><td>No</td><td>No</td><td>Yes</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="stack">
+    <h2>States of a sign-up</h2>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>State</th><th>How it starts</th><th>What the person sees</th><th>What we send</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge">Not joined</span></td><td>The default</td><td><a href="home.html">Home</a>, with a button to join</td><td>Nothing</td></tr>
+        <tr><td><span class="badge ok">On the list</span></td><td>They send the form on <a href="join.html">Join the list</a></td><td>The confirmation on the same page</td><td><a href="welcome-email.html">Email: you are on the list</a></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="stack">
+    <h2>Rules</h2>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Rule</th><th>Decided by</th></tr></thead>
+      <tbody>
+        <tr><td>One address can join once. Joining again shows the same confirmation and sends nothing.</td><td>Assumed. Confirm.</td></tr>
+        <tr><td>We open on [LAUNCH DATE].</td><td>Open: the owner sets it.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</div></section>
+</main>
+<script src="blueprint.js"></script>
+</body>
+</html>

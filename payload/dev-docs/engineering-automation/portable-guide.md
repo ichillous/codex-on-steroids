@@ -12,6 +12,10 @@ The onboarding prompt should leave a concise project context with source anchors
 
 The kit includes source, lockfiles, and tests. It excludes credentials, global settings, hooks, virtual environments, run logs, database contents, source graphs, and application source from its origin project. Existing project files must be merged or reported as conflicts according to the installer's recorded plan and backup policy.
 
+The repository also carries optional `idea-research` and `blueprint-first` modules. Select either or both with `Setup.ps1 -Modules idea-research,blueprint-first`; add `-ProjectRoot` for a centrally stored kit. Existing selections are retained on later reruns. These source bundles use the same safe file installation, backups and rollback as the engineering base. Setup does not install the blueprint browser audit's Node/Playwright/browser prerequisites.
+
+After selecting `idea-research`, explicitly use `$idea-research` and read `dev-docs/idea-research/operating-guide.md`. Its assignment templates and standard-library utilities support evidence-led research sessions; native worker dispatch and interrupted-session recovery remain explicit/manual. After selecting `blueprint-first`, explicitly use `$blueprint-first` to review journeys, states and touchpoints. Its owner must approve the blueprint before implementation. Neither skill automatically starts the engineering coordinator.
+
 ## 2. Check the result
 
 Read `.codex/project-context.md`, `tools/engineering/config/repositories.yaml`, and `tools/engineering/config/validation.yaml`. Confirm that each repository path identifies the intended Git root, and that each selected check's cwd, prerequisites, arguments, and effects fit this project.

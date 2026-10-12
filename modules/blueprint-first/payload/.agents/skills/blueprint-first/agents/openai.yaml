@@ -1,0 +1,4 @@
+interface:
+  display_name: "Blueprint First"
+  short_description: "Plan every page, press and word before building anything"
+  default_prompt: "Before implementing this, make the full blueprint: every role, touchpoint, button, word and state, checked and mapped. Then stop and show me the decisions to confirm."

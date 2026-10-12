@@ -38,3 +38,6 @@
 /.idea/
 .DS_Store
 Thumbs.db
+# Optional-module runs are private local artifacts, not toolkit source.
+/Ideas/
+**/_check/

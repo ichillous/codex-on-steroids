@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Join the list</title>
+<link rel="stylesheet" href="blueprint.css">
+</head>
+<body data-state="step=form" data-variants="step=form|done">
+<!-- Starter page: replace it with your own. It shows one screen with two states, a form and its result,
+     so that pressing the button shows what happens instead of describing it. -->
+<header class="hdr"><div class="wrap">
+  <a class="brand" href="home.html">Project Starter</a>
+  <nav class="nav" aria-label="Primary">
+    <a href="home.html">Home</a>
+    <a href="join.html" aria-current="page">Join the list</a>
+  </nav>
+</div></header>
+
+<main>
+<section class="sec"><div class="wrap narrow stack">
+  <h1>Join the list</h1>
+
+  <form class="stack" data-when="step=form" data-set="step=done">
+    <p class="lede">We send one email when we open. Nothing else.</p>
+    <div class="field">
+      <label class="label" for="join-name">Your name</label>
+      <input class="input" id="join-name" type="text" autocomplete="name" required data-bind="name">
+    </div>
+    <div class="field">
+      <label class="label" for="join-email">Email address</label>
+      <input class="input" id="join-email" type="email" autocomplete="email" required data-bind="email">
+      <span class="hint">Used for the opening email only.</span>
+    </div>
+    <div class="row">
+      <button class="btn pri" type="submit">Join the list</button>
+      <a class="btn quiet" href="home.html">Not now</a>
+    </div>
+  </form>
+
+  <div class="stack" data-when="step=done">
+    <div class="note ok" role="status"><b>You are on the list.</b> A confirmation is on its way to <span data-text="email">your email address</span>.</div>
+    <div class="row">
+      <a class="btn pri" href="home.html">Back to home</a>
+      <button class="btn" type="button" data-flash="Link copied.">Copy a link to share</button>
+      <button class="btn quiet" type="button" data-set="step=form">Use a different address</button>
+    </div>
+  </div>
+</div></section>
+</main>
+
+<footer class="foot"><div class="wrap">
+  <span>Project Starter</span>
+  <a href="home.html">Home</a>
+</div></footer>
+<script src="blueprint.js"></script>
+</body>
+</html>
