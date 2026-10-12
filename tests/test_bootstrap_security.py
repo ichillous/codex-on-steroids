@@ -55,6 +55,8 @@ def test_pip_destinations_and_startup_injection_cannot_reach_child(monkeypatch, 
     for key, value in hostile.items():
         monkeypatch.setenv(key, value)
     monkeypatch.setenv("PIP_INDEX_URL", "https://packages.example.invalid/simple")
+    monkeypatch.setenv("PIP_NO_INDEX", "1")
+    monkeypatch.setenv("PIP_FIND_LINKS", str(tmp_path / "offline wheels"))
     captured = {}
 
     def run(argv, **kwargs):
@@ -73,6 +75,9 @@ def test_pip_destinations_and_startup_injection_cannot_reach_child(monkeypatch, 
     assert bootstrap.NETWORK_PIP_SETTINGS == graphify.NETWORK_PIP_SETTINGS
     assert all(key not in graphify.process_env() for key in hostile if key != "PIP_CONFIG_FILE")
     assert graphify.process_env()["PIP_INDEX_URL"] == captured["env"]["PIP_INDEX_URL"]
+    for environment in (captured["env"], graphify.process_env()):
+        assert environment["PIP_NO_INDEX"] == "1"
+        assert environment["PIP_FIND_LINKS"] == str(tmp_path / "offline wheels")
 
 
 def test_owned_bootstrap_uses_isolated_commands_and_readiness_checks(tmp_path, monkeypatch):

@@ -29,6 +29,7 @@ MAX_HTML_NODES = 5000
 NETWORK_PIP_SETTINGS = frozenset({
     "PIP_INDEX_URL", "PIP_EXTRA_INDEX_URL", "PIP_TRUSTED_HOST", "PIP_CERT",
     "PIP_CLIENT_CERT", "PIP_PROXY", "PIP_TIMEOUT", "PIP_RETRIES",
+    "PIP_NO_INDEX", "PIP_FIND_LINKS",
 })
 # Deliberately omit configuration/credential formats and preprocessors. Only
 # these local structural extractors are eligible for automatic initial setup.
