@@ -23,7 +23,7 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const { execSync } = require('child_process');
-const { blueprintRoot, contained, digest, sourceFiles, equal } = require('./blueprint_safety.cjs');
+const { blueprintRoot, canonicalRelative, contained, digest, sourceFiles, equal } = require('./blueprint_safety.cjs');
 const SETTLE_MS = 300;
 
 const argv = process.argv.slice(2);
@@ -31,7 +31,7 @@ const dirArg = argv.find((a) => !a.startsWith('--'));
 if (!dirArg) { console.log('usage: node browser_audit.cjs <blueprint-dir> [--only a,b] [--no-clicks] [--no-shots] [--widths 1440,390]'); process.exit(2); }
 const root = blueprintRoot(dirArg);
 const opt = (name) => { const i = argv.indexOf(name); return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : null; };
-const ONLY = (opt('--only') || '').split(',').map((s) => s.trim().replace(/\.html$/, '')).filter(Boolean);
+const ONLY = (opt('--only') || '').split(',').map((s) => s.trim()).filter(Boolean).map((s) => canonicalRelative(s).replace(/\.html$/, ''));
 const NO_CLICKS = argv.includes('--no-clicks');
 const NO_SHOTS = argv.includes('--no-shots');
 
@@ -65,9 +65,9 @@ let servedSources = new Set();
 const server = http.createServer((req, res) => {
   let file;
   try {
-    const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\//, '');
+    const rel = canonicalRelative(decodeURIComponent(req.url.split('?')[0]).replace(/^\//, ''));
     file = contained(root, rel);
-    if (rel !== 'map.html' && !servedSources.has(rel.replace(/\\/g, '/'))) throw new Error('not a blueprint source');
+    if (rel !== 'map.html' && !servedSources.has(rel)) throw new Error('not a blueprint source');
     if (!fs.statSync(file).isFile()) throw new Error('not a file');
   } catch (e) { res.writeHead(e.code === 'ENOENT' ? 404 : 403); res.end('not available'); return; }
   fs.readFile(file, (err, data) => {
@@ -179,10 +179,11 @@ function variantsOf(html) {
   if (!validWidths(defWidths)) throw new Error('Widths must be positive integers up to 10000.');
   const groupCount = {};
   const allScreens = (man.screens || []).map((s) => {
-    contained(root, s.file);
+    const file = canonicalRelative(s.file);
+    contained(root, file);
     if (s.widths && !validWidths(s.widths)) throw new Error('Invalid screen widths: ' + s.file);
     groupCount[s.group] = (groupCount[s.group] || 0) + 1;
-    return Object.assign({}, s, { stem: String(s.file).replace(/\.html$/, ''), code: s.group + groupCount[s.group], kind: s.kind || 'screen' });
+    return Object.assign({}, s, { file, stem: file.replace(/\.html$/, ''), code: s.group + groupCount[s.group], kind: s.kind || 'screen' });
   });
   if (!allScreens.length || new Set(allScreens.map((s) => s.stem)).size !== allScreens.length) throw new Error('List distinct blueprint screens before auditing.');
   if (ONLY.some((stem) => !allScreens.some((s) => s.stem === stem))) throw new Error('--only names a page absent from the manifest.');
@@ -192,7 +193,7 @@ function variantsOf(html) {
   const evidence = { version: 1, files: sourceFiles(root), auditor: digest(__filename), helper: digest(path.join(__dirname, 'blueprint_safety.cjs')),
     options: { widths: defWidths, clicks: !NO_CLICKS, shots: !NO_SHOTS, settle_ms: SETTLE_MS } };
   for (const s of allScreens) {
-    if (fs.existsSync(contained(root, s.file)) && !Object.prototype.hasOwnProperty.call(evidence.files, s.file.replace(/\\/g, '/'))) throw new Error('Manifest page uses an excluded/generated path: ' + s.file);
+    if (fs.existsSync(contained(root, s.file)) && !Object.prototype.hasOwnProperty.call(evidence.files, s.file)) throw new Error('Manifest page uses an excluded/generated path: ' + s.file);
   }
   servedSources = new Set(Object.keys(evidence.files));
   const pw = loadPlaywright();

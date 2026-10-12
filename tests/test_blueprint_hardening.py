@@ -225,7 +225,7 @@ def test_junctions_fail_without_external_writes(blueprint, entry):
     assert not list(outside.iterdir())
 
 
-@pytest.mark.parametrize('filename', ['../outside.html', '/outside.html', 'C:\\outside.html'])
+@pytest.mark.parametrize('filename', ['../outside.html', './../outside.html', 'assets/./../outside.html', '/outside.html', 'C:\\outside.html'])
 def test_manifest_paths_cannot_leave_blueprint(blueprint, filename):
     manifest = json.loads((blueprint / 'blueprint.json').read_text(encoding='utf-8'))
     manifest['screens'][0]['file'] = filename
@@ -266,6 +266,43 @@ def test_nested_asset_named_map_is_fingerprinted(blueprint):
     assert 'assets/map.html' in report(blueprint)['evidence']['files']
     assert python('build_map.py', blueprint).returncode == 0
     assert 'controlled-protocol-fixture' in (blueprint / 'map.html').read_text(encoding='utf-8')
+
+
+@pytest.mark.parametrize('prefix', ['./', '././'])
+def test_safe_dot_segments_keep_assets_links_evidence_and_serving_compatible(blueprint, prefix):
+    manifest_path = blueprint / 'blueprint.json'
+    manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+    for page in manifest['screens']:
+        page['file'] = prefix + page['file']
+    manifest['start'] = prefix + 'home.html'
+    manifest['journeys'] = [{'title': 'Sample journey', 'who': 'Reader', 'steps': [prefix + 'home.html', prefix + 'second.html']}]
+    manifest_path.write_text(json.dumps(manifest), encoding='utf-8')
+    for page in blueprint.glob('*.html'):
+        content = page.read_text(encoding='utf-8').replace('href="blueprint.css"', 'href="' + prefix + 'blueprint.css"')
+        content = content.replace('src="blueprint.js"', 'src="' + prefix + 'blueprint.js"')
+        if page.name == 'home.html':
+            content = content.replace('</body>', '<a href="' + prefix + 'second.html">Next page</a></body>')
+        page.write_text(content, encoding='utf-8')
+    checked = python('check_blueprint.py', blueprint)
+    assert checked.returncode == 0, checked.stdout + checked.stderr
+    static = json.loads((blueprint / '_check/static.json').read_text(encoding='utf-8'))
+    assert static['pages'][0]['file'] == 'home.html'
+    assert static['pages'][0]['out'] == ['second']
+    captured = blueprint.parent / 'dot-http-result.json'
+    result = browser(blueprint, '--no-shots', FAKE_SERVER_PATH='/' + prefix + 'blueprint.js', FAKE_SERVER_RESULT=str(captured))
+    assert result.returncode == 0, result.stdout + result.stderr
+    response = json.loads(captured.read_text(encoding='utf-8'))
+    assert response['status'] == 200
+    assert response['text'] == '// sample script'
+    assert [page['stem'] for page in report(blueprint)['pages']] == ['home', 'second']
+    assert 'home.html' in report(blueprint)['evidence']['files']
+    assert not any(name.startswith('./') for name in report(blueprint)['evidence']['files'])
+    partial = browser(blueprint, '--no-shots', '--only', prefix + 'home.html')
+    assert partial.returncode == 0, partial.stdout + partial.stderr
+    assert python('build_map.py', blueprint).returncode == 0
+    mapped = (blueprint / 'map.html').read_text(encoding='utf-8')
+    assert 'controlled-protocol-fixture' in mapped
+    assert 'stale or unbound' not in mapped
 
 
 def test_server_rejects_encoded_parent_and_sibling_prefix(blueprint):

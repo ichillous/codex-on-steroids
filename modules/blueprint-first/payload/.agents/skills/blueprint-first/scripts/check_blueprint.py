@@ -22,7 +22,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 sys.dont_write_bytecode = True
-from blueprint_safety import blueprint_root, contained, local_reference, source_files
+from blueprint_safety import blueprint_root, canonical_relative, contained, local_reference, source_files
 
 VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'}
 KINDS = ('screen', 'message', 'document', 'spoken', 'offstage', 'reference')
@@ -194,6 +194,8 @@ class Page(HTMLParser):
 
 def stem_of(name):
     name = str(name).split('#')[0].split('?')[0]
+    if name:
+        name = canonical_relative(name)
     return name[:-5] if name.endswith('.html') else name
 
 
@@ -203,7 +205,7 @@ def analyze(root):
         before = source_files(root)
         result = _analyze(root)
         for page in result.get('pages', []):
-            if page['exists'] and page['file'].replace('\\', '/') not in before:
+            if page['exists'] and canonical_relative(page['file']) not in before:
                 return {'fatal': 'A manifest page is inside an excluded/generated path: ' + page['file']}
         if source_files(root) != before:
             return {'fatal': 'Blueprint source changed during the static check; rerun it.'}
@@ -238,7 +240,7 @@ def _analyze(root):
     counters = defaultdict(int)
     seen = set()
     for s in screens:
-        f = s.get('file', '')
+        f = canonical_relative(s.get('file', ''))
         st = stem_of(f)
         if not f.endswith('.html'):
             fail('blueprint.json', 'screen "%s": file names end in .html' % f); continue
@@ -359,6 +361,8 @@ def _analyze(root):
             local_reference(root, href)
             target, _, frag = href.partition('#')
             target = target.split('?')[0]
+            if target:
+                target = canonical_relative(target)
             links.append({'label': label, 'to': stem_of(target) if target else st, 'file': target or p['file'],
                           'frag': frag, 'does': l.get('does', '')})
         p['links'], p['external'] = links, external

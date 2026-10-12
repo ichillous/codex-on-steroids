@@ -12,14 +12,20 @@ function blueprintRoot(root) {
   }
   return fs.realpathSync(root);
 }
-function contained(root, relative) {
-  root = blueprintRoot(root);
+function canonicalRelative(relative) {
   const raw = String(relative).replace(/\\/g, '/');
   const parts = raw.split('/');
   if (!raw || raw.includes('\0') || path.win32.isAbsolute(raw) ||
-      parts.some((p) => !p || p === '.' || p === '..' || p.includes(':'))) {
+      parts.some((p) => !p || p === '..' || p.includes(':'))) {
     throw new Error('Unsafe blueprint path: ' + relative);
   }
+  const canonical = parts.filter((p) => p !== '.').join('/');
+  if (!canonical) throw new Error('Unsafe blueprint path: ' + relative);
+  return canonical;
+}
+function contained(root, relative) {
+  root = blueprintRoot(root);
+  const parts = canonicalRelative(relative).split('/');
   let candidate = root;
   for (const part of parts) {
     candidate = path.join(candidate, part);
@@ -58,4 +64,4 @@ function equal(a, b) {
   const ak = Object.keys(a).sort(), bk = Object.keys(b).sort();
   return ak.length === bk.length && ak.every((k, i) => k === bk[i] && equal(a[k], b[k]));
 }
-module.exports = { blueprintRoot, contained, digest, sourceFiles, equal };
+module.exports = { blueprintRoot, canonicalRelative, contained, digest, sourceFiles, equal };

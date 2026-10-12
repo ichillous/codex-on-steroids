@@ -19,15 +19,24 @@ def blueprint_root(root):
     return root.resolve()
 
 
-def contained(root, relative):
-    """Reject absolute/traversing paths and every existing linked descendant."""
-    root = blueprint_root(root)
+def canonical_relative(relative):
+    """Normalize harmless dot segments without permitting parent traversal."""
     raw = str(relative).replace('\\', '/')
     if not raw or '\x00' in raw or PureWindowsPath(raw).drive or raw.startswith('/'):
         raise ValueError('Unsafe blueprint path: %s' % relative)
     parts = raw.split('/')
-    if any(p in ('', '.', '..') or ':' in p for p in parts):
+    if any(p in ('', '..') or ':' in p for p in parts):
         raise ValueError('Unsafe blueprint path: %s' % relative)
+    parts = [p for p in parts if p != '.']
+    if not parts:
+        raise ValueError('Unsafe blueprint path: %s' % relative)
+    return '/'.join(parts)
+
+
+def contained(root, relative):
+    """Reject absolute/traversing paths and every existing linked descendant."""
+    root = blueprint_root(root)
+    parts = canonical_relative(relative).split('/')
     candidate = root
     for part in parts:
         candidate /= part
@@ -47,8 +56,8 @@ def local_reference(root, reference):
     parsed = urlsplit(reference)
     if parsed.scheme or parsed.netloc or not parsed.path:
         return None
-    local = unquote(parsed.path)
-    if any(part in EXCLUDED for part in local.replace('\\', '/').split('/')[:-1]):
+    local = canonical_relative(unquote(parsed.path))
+    if any(part in EXCLUDED for part in local.split('/')[:-1]):
         raise ValueError('Local asset uses an excluded/generated directory: %s' % reference)
     return contained(root, local)
 
