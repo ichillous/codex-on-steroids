@@ -152,7 +152,15 @@ Investigation and selected specialists can run concurrently up to `max_workers`.
 
 Prefer the Codex managed-worktree tools when preparing isolation from a Codex session. Inspect existing attached worktrees first. The outer workspace worktree does not bring embedded Git repositories along automatically. Never stage, clean, reset, or switch unrelated working copies to make an experiment easier.
 
-The system records checkout ownership and refuses conflicts. Case and real-path normalization matter on Windows. A scope listing only one file does not justify multiple writers sharing a physical checkout.
+The system records checkout ownership and refuses conflicts across state directories for the same OS account. A canonical shared lease database lives under the account's trusted local data directory (`workspace-engineering/checkout-leases.sqlite` on Windows, `.local/state/workspace-engineering/checkout-leases.sqlite` on POSIX). Its location has no task, CLI or environment override. Case and real-path normalization matter on Windows. A scope listing only one file does not justify multiple writers sharing a physical checkout.
+
+Changing `--state-dir` selects run artifacts and journals; it does not isolate a checkout or clear shared ownership. Uncertain leases stay owned until the original journal's explicit reconciliation retires the operation. Stop and settle older-version jobs before upgrading: the new authority cannot discover an arbitrary old version's separate state database. These leases coordinate same-account runner instances; native filesystem permissions remain the authority for other accounts.
+
+If a stopped run has no unsettled operation but still holds a lease after an interrupted finalization, use `reconcile --run <id> --action release --acknowledge-risk` with its original workspace/state directory. Release verifies stopped coordinator/workers, retires resumable state, and releases only that run's leases. Ordinary `retry` and `abandon` still require their specific `--operation`.
+
+Write scope is separate from evidence scope. Worker, validation and reviewer evidence binds to the broader relevant checkout source snapshot: tracked/nonignored source, imported dependency source outside write scope, configuration, Git HEAD/index and catalog bytes. Explicitly scoped source remains represented even when Git ignores it. Declared generated, runtime, installed-package and nested-repository exclusions remain visible in coverage metadata. A represented dependency or validation-catalog change invalidates earlier evidence. Select other relevant repositories explicitly; a fingerprint does not establish freshness for external services, installed packages or arbitrary ignored files.
+
+Validation commands own their descendants for their entire lifetime. Windows commands enter a kill-on-close Job Object before executing; POSIX commands use an owned process group. Completion, failure, timeout, cancellation and journal errors close that ownership even if the original parent has already exited. Profiles that need a persistent background service must arrange it outside this command lifetime with explicit authorization and recovery.
 
 ## 7. Use it from Codex
 

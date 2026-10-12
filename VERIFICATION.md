@@ -1,5 +1,46 @@
 # Portable kit verification
 
+## Audit hardening — October 12, 2026
+
+This revision implements the 15 findings documented in [HARDENING.md](HARDENING.md). The results below concern the integrated kit on Windows x64 with Python 3.14.7. The older sections are historical records; their source hashes do not describe the hardened revision.
+
+| Check | Observed result |
+|---|---|
+| Integrated installer, Graphify, optional modules and packaged runner/MCP suite | **290 passed, 2 skipped, 6 passing subtests**, in 332.07 seconds. |
+| Final bootstrap/Graphify slice after preserving explicit offline pip settings | **51 passed, 1 skipped**, in 17.23 seconds; 10 relevant input hashes were stable throughout. This overlaps the integrated suite and is not an additional 51 unique tests. |
+| AutoGen export and usage-accounting component checks | **3 passed**, in 2.49 seconds, using the existing separate Studio environment and the current packaged test source. No provider/model calls. |
+| Actual PowerShell install, rerun, receipt rollback and reinstall | Both optional modules installed into a disposable Git project. Initial install made 118 changes and managed 117 files; rerun made zero changes. Rollback restored all eight original fixture files and removed created managed paths. Reinstall passed. Staged index, unstaged application source, untracked notes and owner configuration were preserved. |
+| Actual current browser auditor in headless Chrome | With existing Node 24.21.0 and a temporary Playwright 1.64.0 SDK, Chromium 155 rendered a synthetic page at two widths and recorded two screenshots plus a visible button transition. The clean page exited zero. A page throwing 100 ms after a click exited one and recorded the error. The current map builder accepted the fresh clean artifact. |
+| Source review | An independent reviewer inspected all 15 fixes, integrated source, recovery behavior and attributable fixture evidence. No unresolved blocking finding remained. |
+
+The integrated suite started before the final small offline-pip-policy follow-up; the final affected slice verifies that follow-up against the integrated source. The two full-suite skips were unavailable Windows symlink creation and a colon-containing filename that Windows forbids. Actual Windows junction and hard-link cases passed. Controlled worker responses exercise the real local coordinator/checkpoint/Git code without a model call. Tests redirect shared lease authority into disposable directories rather than mutate the account's live lease database.
+
+Python, JSON, TOML, YAML, SVG, PowerShell and JavaScript parsing passed. Literal documentation links resolve apart from four paths deliberately generated or supplied in a destination project: project context, the example task and two graph-pointer references. Publication review found no personal home/workspace paths, personal contact information or credential-token matches in the reusable source. Synthetic credential markers remain in regression fixtures. Local inputs, journals, detailed logs, browser profiles and environments are outside the published kit.
+
+The 47 protected original workspace artifacts, including the designated Graphify pointer, were preserved. That publication covers a different project: consultation was **limited**, with no matching toolkit symbols. Fixes were verified in current source and disposable fixtures; no graph publication was replaced.
+
+The [CI workflow](.github/workflows/verify.yml) configures the same core suite on Windows with Python 3.11 and 3.14 plus isolated AutoGen component checks. Workflow publication and hosted run results are separate evidence; configuring the matrix does not itself establish a passing Python 3.11 run.
+
+These checks did not run a new paid onboarding turn, a live production engineering job, an AutoGen provider experiment or a complete owner-approved product blueprint. Browser fixtures establish the auditor's bounded interaction/error behavior, not production visual quality or comprehensive business-state coverage. Static setup deliberately skipped dependency downloads; existing engineering and Studio runtime readiness was checked separately. A compatible prior kit environment is reused without mutation only after ownership/dependency/runtime verification.
+
+Selected SHA-256 bindings for the reviewed source:
+
+| File | SHA-256 |
+|---|---|
+| `Setup.ps1` | `97a29480c5b7608d0048a77b09bd96f63b1634628681d3fae171fc92f7af3f9b` |
+| `scripts/install.py` | `17256018bbefef5e39bf41e4289cd33e3a317fee1ade643b3fd68baa24372e5c` |
+| `scripts/onboarding.py` | `4d45dfaa5683804caaa2fb85f0350a27078695d4b7faed844148ee00d2a73c13` |
+| `payload/tools/engineering/bootstrap_runtime.py` | `7360ee0a32bf98bc7b48829722315979631625cfc9dc73e50c285c77eb75a32a` |
+| `payload/tools/engineering/graphify_setup.py` | `5fee85b1fe549a22abe9f401b2d2242b74ba4d0503285b0133c1cdbed21c2653` |
+| `workspace_engineering/coordinator.py` | `dfa7cce3e59094af145be70e1d7eeaa6dffe7f0d9b5d18463a718365c49ea39f` |
+| `workspace_engineering/state.py` | `a54b86c26ade0ff725a2319cc4ab324f3b424d02124629ca4fae3f6c60ae8f05` |
+| `workspace_engineering/process_tree.py` | `7aa80d25e5f4d6f3696a29e99deb586333ac3fa20778f4875869774e31986daa` |
+| `workspace_engineering/validation_runner.py` | `1a46873396696a3ca6cc5571b506b5d3cfb30a6e794fdead0d4eb9b286d7ddec` |
+| Blueprint `browser_audit.cjs` | `88b9afc365ae25fbdb7c8fb400f53878c960a76a1b27194e543cb746fa71adaa` |
+| Blueprint `blueprint_safety.cjs` | `19f48f0af837515a7212a927ce5357abcbe1b138f0bb15a5e1aa8c2927b4a333` |
+
+Runtime files above are under `payload/tools/engineering/src/`; blueprint scripts are under `modules/blueprint-first/payload/.agents/skills/blueprint-first/scripts/`. Compare exact bytes before reusing these results. Full logs and complete source manifests remain in local disposable validation artifacts.
+
 ## Optional research and blueprint modules — October 12, 2026
 
 This revision adds opt-in source bundles for `idea-research` and `blueprint-first`. The core engineering/Graphify installation remains the default. `Setup.ps1 -Modules idea-research,blueprint-first` forwards repeatable installer selections, and the ownership manifest retains previous selections on reruns. Module files use the same conflict detection, backups, receipts and rollback as the base payload.

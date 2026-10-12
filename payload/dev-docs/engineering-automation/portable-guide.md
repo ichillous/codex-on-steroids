@@ -8,6 +8,8 @@ Copy the entire `engineering-starter-kit` folder into the root of the destinatio
 
 The installer copies source and templates, recreates local Python environments from their lockfiles, registers project integration, and gathers a bounded inventory. It detects Git roots and manifests, then supplies the onboarding prompt with the destination context so that it can inspect real instructions, applications, scripts, and checks. No repository architecture is inferred solely from folder names.
 
+Use `-SkipStudio` to prepare Graphify and engineering while deferring AutoGen Studio's environment. Python startup and pip destinations are isolated during bootstrap; existing environments need attributable ownership or a verified compatible earlier installation. Unverified or linked environments are preserved rather than silently reused. Sensitive evidence files are omitted before excerpts are saved or sent to onboarding, with omission reasons retained. Review generated local evidence before publishing it.
+
 The onboarding prompt should leave a concise project context with source anchors, an accurate repository registry, and validation profiles whose effects have been inspected. An unavailable model, blocked configuration, missing Git root, missing graph, or unanswered project question remains visible. Successful copying or dependency installation is not proof that the onboarding model completed or that the application was tested.
 
 The kit includes source, lockfiles, and tests. It excludes credentials, global settings, hooks, virtual environments, run logs, database contents, source graphs, and application source from its origin project. Existing project files must be merged or reported as conflicts according to the installer's recorded plan and backup policy.

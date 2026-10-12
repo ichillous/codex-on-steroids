@@ -78,6 +78,8 @@ Task: [describe the work]
 
 For a durable team job, follow the [runner guide](payload/tools/engineering/README.md). For a provider-based team experiment, use the [AutoGen lab guide](payload/tools/engineering/experiments/autogen/README.md).
 
+To prepare Graphify and engineering without downloading the AutoGen Studio environment, add `-SkipStudio` to setup. Studio source remains available for a later explicit bootstrap.
+
 ## How it works
 
 Setup prepares the project once. Each task then follows the route you select:
@@ -131,7 +133,7 @@ flowchart TB
         BuildNeeded -->|"Yes"| Extract["Extract local AST and validate the graph<br/>Record hashes and publish LATEST.md"]
         BuildNeeded -->|"No: reuse or adopt existing graph"| Consult["Consult graph labels and relationships<br/>Record coverage and source freshness limits"]
         Extract --> Consult
-        Consult --> Environments["Install separate LangGraph/Codex<br/>and AutoGen Studio environments"]
+        Consult --> Environments["Install LangGraph/Codex environment<br/>Install separate Studio environment unless SkipStudio"]
         Environments --> Ready["Inspect context and graph report<br/>Run doctor and, when needed, doctor --live<br/>Reload VS Code and verify fresh-session discovery"]
     end
 
@@ -226,12 +228,12 @@ Rerunning setup retains previously installed module selections. Existing indepen
 
 Setup performs these steps:
 
-1. Inspect actual Git boundaries, instruction files and supported manifests with bounded reads. Include up to three representative production files and three test files, with source hashes and explicitly limited coverage. Exclude dependencies, virtual environments, credential folders, generated outputs, and links/junctions.
-2. Run a **read-only Codex setup prompt** using your configured model and account. It describes repository responsibilities, selects observed validation candidates, recommends specialists, and records unknowns. This step uses a model turn; it may consume your account's usage.
+1. Inspect actual Git boundaries, instruction files and supported manifests with bounded reads. Include up to three representative production files and three test files, with source hashes and explicitly limited coverage. Exclude dependencies, virtual environments, credential folders, generated outputs, and links/junctions. Screen every evidence class for sensitive literals before retaining excerpts; record omissions without copying the omitted values into analysis or prompts.
+2. Run a **read-only Codex setup prompt** using your configured model and account. Automatic project instruction discovery is disabled for this onboarding turn; screened instruction excerpts are supplied explicitly. Native account configuration and permissions still apply. The prompt describes repository responsibilities, selects observed validation candidates, recommends specialists, and records unknowns. This step uses a model turn; it may consume your account's usage.
 3. Validate the structured response against observed repository IDs, evidence paths and candidate IDs. Model output cannot supply arbitrary executable commands or file patches.
 4. Install the kit and tailor `.codex/project-context.md`, the repository registry, validation catalog, and example task. Preserve existing permission settings, hooks and unrelated configuration. A conflicting file stops installation with its path.
 5. Reuse a compatible Graphify installation or install the pinned `graphifyy` package in `tools/engineering/.venv-graphify`. Install a project Graphify skill if one is absent. Preserve and consult the existing publication selected by `graphify-out/LATEST.md`; if no publication exists, extract project code locally with Graphify's AST parser, validate the graph, and publish it with source hashes and provenance. A valid legacy `graphify-out/graph.json` can be adopted without rebuilding. An invalid existing pointer stops preparation and is preserved.
-6. Create separate local Python environments for LangGraph/Codex and AutoGen Studio using the included dependency pins. Package installation downloads dependencies. Graphify's default preparation is code-only and makes no semantic provider/model call. Setup does not execute application builds or tests, start Studio, or deploy anything.
+6. Create separate local Python environments for LangGraph/Codex and AutoGen Studio using the included dependency pins. `-SkipStudio` defers Studio downloads. Bootstrap isolates Python imports and pip destinations, refuses linked or unverified environments, and checks installed package readiness. Package installation downloads dependencies. Graphify's default preparation is code-only and makes no semantic provider/model call. Setup does not execute application builds or tests, start Studio, or deploy anything.
 
 For a missing graph, default extraction excludes sensitive files, dependencies, generated outputs, links, and the installed kit tooling. Projects exceeding 500 supported code files or two million source words need an explicit source scope; setup stops with a retry instruction instead of choosing a scope for you. Use `-GraphifyScope 'backend/src','frontend/src'` to select relative source directories. A project without supported code or extractable symbols cannot produce this AST graph; setup reports that gap instead of creating placeholder evidence. Documents and images require a separately invoked Graphify workflow.
 
@@ -268,6 +270,8 @@ Python, Maven Java, and JavaScript/TypeScript manifests get specific discovery a
 
 The full coordinator is explicitly invoked for team jobs. Ordinary focused edits can use the regular Codex workflow. Opening a chat does not automatically start teams or AutoGen Studio.
 
+Implementation scope limits permitted edits. Validation and review bind to a broader checkout source snapshot, including tracked/nonignored dependency source and configuration plus explicitly scoped ignored files; source changes invalidate recorded evidence. Declared generated, runtime, installed-package and nested-repository exclusions stay visible. Checkout leases coordinate same-account runs across state directories. Worker results must pass a strict schema before acceptance can be evaluated. See the [hardening record](HARDENING.md) for the addressed audit cases and verification limits.
+
 ## Graphify and existing tools
 
 Default setup prepares and actually consults Graphify after configuration installation. A compatible installation is reused; otherwise a dedicated project environment is created without upgrading global packages. `-GraphifyPython` can select an existing compatible interpreter. The kit installs its project Graphify skill only when absent and never invokes upstream hook installation or copies another project's graph.
@@ -298,6 +302,7 @@ Existing global tools and MCP servers remain available only where the runtime ac
 | Mode | Codex onboarding turn | Configuration installation | Graphify preparation and environment downloads |
 |---|---|---|---|
 | Default | Yes | Yes | Yes |
+| `-SkipStudio` | Yes | Yes | Graphify and engineering; Studio deferred |
 | `-PlanOnly` | Yes | No; saves local analysis and a file-change plan | No |
 | `-SkipDependencies` | Yes | Yes | Deferred |
 | `-Static` | No; manifest-based analysis | Yes | Yes |
@@ -326,6 +331,9 @@ The examples below use the copied-kit layout. When invoking a centrally stored k
 
 # Add optional discovery and design routes; previously selected modules persist.
 .\engineering-starter-kit\Setup.ps1 -Modules idea-research,blueprint-first
+
+# Prepare the core engineering workflow; defer Studio downloads.
+.\engineering-starter-kit\Setup.ps1 -SkipStudio
 ```
 
 Default AI failure stops setup and retains the prompt and diagnostics. It does not silently substitute static analysis. Fix the reported CLI/login/model/permission problem and rerun, or explicitly choose `-Static`.
@@ -342,9 +350,11 @@ To restore configuration from an installation receipt:
 .\engineering-starter-kit\Setup.ps1 -Rollback '.engineering-state\setup\<timestamp-id>\receipt.json'
 ```
 
-Rollback first verifies all installed file hashes. If you edited any affected file afterward, it stops and preserves your edits. Backups can then guide manual reconciliation. Rollback restores configuration files; it retains downloaded environments, evidence and empty directories. No recursive cleanup is performed.
+Rollback classifies each planned file against its recorded before and after hashes. Files already in the before state stay unchanged; installed after-state files are restored. Unknown later edits stop recovery before restoration. This also supports a prepared receipt left by an interrupted partial installation. Backups can guide manual reconciliation. Rollback restores configuration files; it retains downloaded environments, evidence and empty directories. No recursive cleanup is performed.
 
 If Graphify preparation or dependency installation fails after configuration installation, fix the reported problem and rerun setup. Graphify can be retried with `tools\engineering\graphify.ps1`; use `tools\engineering\bootstrap.ps1` / `tools\engineering\experiments\autogen\bootstrap.ps1` for the other environments. Rollback retains generated graph publications as well as environments and evidence. Application-source files, Git staging, user/global settings, and existing hooks are outside installer writes.
+
+Environment reuse requires attributable ownership or verification of a compatible earlier kit installation. A linked, incomplete or unverified existing environment is preserved and reported for recovery. Before upgrading an existing runner installation, stop and reconcile its active jobs. Keep the original job journal and shared checkout lease authority until uncertain operations are settled.
 
 ## Developer checks
 
@@ -355,6 +365,8 @@ python -m pytest .\engineering-starter-kit\tests -q
 ```
 
 See [VERIFICATION.md](VERIFICATION.md) for checks actually performed on this kit and their limits.
+
+The [Windows CI workflow](.github/workflows/verify.yml) runs the installer, packaged runtime, optional-module regressions and isolated AutoGen checks on Python 3.11 and 3.14 with Node 24. It uses fake model workers and offline component checks. Local verification and completed CI results are reported separately.
 
 ## Guides and reference
 
@@ -369,3 +381,4 @@ See [VERIFICATION.md](VERIFICATION.md) for checks actually performed on this kit
 | [Idea research module](modules/idea-research/README.md) | Assess an idea with attributable evidence and local research sessions. |
 | [Blueprint first module](modules/blueprint-first/README.md) | Build and review an experience before approving implementation. |
 | [Verification record](VERIFICATION.md) | Review observed checks and the limits of their evidence. |
+| [Audit hardening record](HARDENING.md) | Trace the corrected failure cases and regression coverage. |

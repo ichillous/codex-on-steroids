@@ -66,11 +66,13 @@ Graph evidence records the selected publication, executed terms/traversal, match
 
 The validation catalog is intentionally explicit. Each entry has a repository, working directory, argument vector, effect description, and result interpretation. Adding a build command requires inspecting what it invokes, including inherited Maven plugins and Ant dependencies. Operational actions such as migrations, deployment, signing, and real EDI transmission are outside the default catalog.
 
-Checks and review refer to source fingerprints. Later edits can make previous results stale. Revalidate affected behavior and review the resulting source before claiming completion.
+Checks and review refer to broader checkout source fingerprints, independently of the narrower permitted write scope. Tracked/nonignored dependency source, configuration, explicitly scoped ignored files, Git state and the validation catalog are part of evidence freshness. Declared generated/runtime/installed-package/nested-repository exclusions stay visible; external services and unselected repositories require separate evidence. Later changes to represented source invalidate previous results. Worker results are validated against a strict schema, including finding severity and exact acceptance-criterion identity; malformed results cannot become completion.
 
 ## Persistence and recovery
 
 Local run state lives under `.engineering-state/`. It contains the task contract, worker/operation identifiers, check results, evidence, and reports; it is excluded from version control. Retain run records needed for diagnosis. Do not store credentials or real client payloads in them.
+
+Checkout ownership uses a separate canonical account-local lease authority so supported runs with different state directories still coordinate. Uncertain operations retain their leases until explicit reconciliation using the original journal. Settle old-version runners before upgrading, and preserve both journals and shared lease data during recovery. Native approval identities include request type, thread and turn so a retried operation cannot inherit an expired request.
 
 An interrupted workflow node can run again after resumption. Consequently, every consequential worker operation must first be reconciled with its existing process/session and filesystem. Unknown execution state remains visible. A retry must never create a second writer simply because a checkpoint is available. [LangGraph persistence](https://docs.langchain.com/oss/python/langgraph/persistence), [interrupt/resume behavior](https://docs.langchain.com/oss/python/langgraph/interrupts)
 

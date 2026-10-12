@@ -1,0 +1,67 @@
+name: Verify toolkit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.14']
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Install reviewed test dependencies
+        shell: pwsh
+        run: |
+          python -I -B -m pip install -r payload/tools/engineering/requirements.lock graphifyy==0.9.73
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I -B -m pip install --no-deps --editable payload/tools/engineering
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I -B -m pip check
+          exit $LASTEXITCODE
+      - name: Verify source, installer, recovery and optional modules
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = Join-Path $PWD 'payload/tools/engineering/src'
+          $env:STARTER_KIT_GRAPHIFY_TEST_PYTHON = (Get-Command python).Source
+          python -B -m pytest tests payload/tools/engineering/tests -q -p no:cacheprovider --basetemp "$env:RUNNER_TEMP/toolkit-pytest"
+          exit $LASTEXITCODE
+      - name: Verify isolated AutoGen exports and usage accounting
+        shell: pwsh
+        run: |
+          python -I -B -m venv "$env:RUNNER_TEMP/studio-tests"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $studioTestPython = Join-Path $env:RUNNER_TEMP 'studio-tests/Scripts/python.exe'
+          & $studioTestPython -I -B -m pip install -r payload/tools/engineering/experiments/autogen/requirements.lock
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Push-Location payload/tools/engineering/experiments/autogen
+          try {
+            & $studioTestPython -B test_experiments.py
+            $testExit = $LASTEXITCODE
+          } finally {
+            Pop-Location
+          }
+          exit $testExit

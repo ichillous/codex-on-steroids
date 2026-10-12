@@ -131,3 +131,53 @@ def test_start_callback_failure_stops_spawned_process_tree(workspace):
         engine.run("fixture", workspace, workspace / "logs", on_start=fail_journal)
     time.sleep(2)
     assert not marker.exists()
+
+
+def test_journal_failure_stops_descendant_after_its_parent_exits(workspace):
+    marker = workspace / "orphan-survived.txt"
+    parent_done = workspace / "parent-done.txt"
+    child_code = f'import time; from pathlib import Path; time.sleep(1.8); Path({str(marker)!r}).write_text("leak")'
+    parent_code = (f'import subprocess,sys; from pathlib import Path; '
+                   f'subprocess.Popen([sys.executable,"-c",{child_code!r}]); '
+                   f'Path({str(parent_done)!r}).write_text("done")')
+    engine = runner(workspace, argv=[sys.executable, "-c", parent_code])
+
+    def fail_after_exit(pid):
+        deadline = time.monotonic() + 2
+        while not parent_done.exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert parent_done.exists(), "Validation parent never reached its exit"
+        time.sleep(0.25)
+        raise RuntimeError("journal failed after parent exit")
+
+    with pytest.raises(RuntimeError, match="journal failed after parent exit"):
+        engine.run("fixture", workspace, workspace / "logs", on_start=fail_after_exit)
+    time.sleep(2)
+    assert not marker.exists()
+
+
+def test_normal_validation_exit_also_closes_owned_background_descendants(workspace):
+    marker = workspace / "background-survived.txt"
+    child_code = f'import time; from pathlib import Path; time.sleep(1.8); Path({str(marker)!r}).write_text("leak")'
+    parent_code = f'import subprocess,sys; subprocess.Popen([sys.executable,"-c",{child_code!r}]); print("finished")'
+    result = runner(workspace, argv=[sys.executable, "-c", parent_code]).run("fixture", workspace, workspace / "logs")
+    assert result["status"] == "passed"
+    time.sleep(2)
+    assert not marker.exists()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows suspended job startup")
+def test_job_assignment_failure_does_not_execute_validation_code(workspace, monkeypatch):
+    from workspace_engineering.process_tree import _WindowsJob
+
+    marker = workspace / "unowned-command-ran.txt"
+
+    def refuse_assignment(self, process):
+        raise OSError("Synthetic job assignment failure")
+
+    monkeypatch.setattr(_WindowsJob, "assign_and_resume", refuse_assignment)
+    code = f'from pathlib import Path; Path({str(marker)!r}).write_text("must not execute")'
+    result = runner(workspace, argv=[sys.executable, "-c", code]).run("fixture", workspace, workspace / "logs")
+    assert result["status"] == "unavailable"
+    assert "job assignment failure" in result["reason"]
+    assert not marker.exists()

@@ -9,7 +9,6 @@ import os
 from pathlib import Path
 import re
 import shutil
-import signal
 import subprocess
 import sys
 import time
@@ -20,6 +19,7 @@ import xml.etree.ElementTree as ET
 import yaml
 
 from workspace_engineering.repository_manager import RepositoryManager, file_sha256
+from workspace_engineering.process_tree import OwnedProcessTree
 
 
 def parse_test_counts(output: str, parser: str) -> dict:
@@ -45,31 +45,6 @@ def parse_test_counts(output: str, parser: str) -> dict:
         # Individual suites and reactor summaries are duplicated in Maven logs.
         # Actual counts come from fresh Surefire XML, never summed log lines.
     return counts
-
-
-def _stop_tree(process: subprocess.Popen) -> None:
-    if process.poll() is not None:
-        return
-    if os.name == "nt":
-        # PID is the process just started by this runner, never a supplied PID.
-        subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       timeout=15, shell=False,
-                       creationflags=subprocess.CREATE_NO_WINDOW)
-    else:
-        try:
-            os.killpg(process.pid, signal.SIGTERM)
-            process.wait(timeout=2)
-        except (ProcessLookupError, subprocess.TimeoutExpired):
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-    try:
-        process.wait(timeout=10)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait(timeout=5)
 
 
 class ValidationRunner:
@@ -172,16 +147,17 @@ class ValidationRunner:
         result["log"] = str(log_path)
         started = time.monotonic()
         process = None
+        tree = None
         reason = None
         status = None
         try:
             with log_path.open("wb") as stream:
-                kwargs = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {"start_new_session": True}
                 environment = os.environ.copy()
                 environment["PYTHONUNBUFFERED"] = "1"
                 environment["PYTHONDONTWRITEBYTECODE"] = "1"
-                process = subprocess.Popen(argv, cwd=cwd, stdout=stream, stderr=subprocess.STDOUT,
-                                           stdin=subprocess.DEVNULL, shell=False, env=environment, **kwargs)
+                tree = OwnedProcessTree()
+                process = tree.start(argv, cwd=cwd, stdout=stream, stderr=subprocess.STDOUT,
+                                     stdin=subprocess.DEVNULL, shell=False, env=environment)
                 result["pid"] = process.pid
                 if on_start is not None:
                     # Persist the child identity before polling so recovery can
@@ -192,26 +168,29 @@ class ValidationRunner:
                 while process.poll() is None:
                     if cancel and cancel():
                         status, reason = "cancelled", "Cancellation requested; spawned process tree stopped"
-                        _stop_tree(process)
+                        tree.stop()
                         break
                     if time.monotonic() - started >= timeout:
                         status, reason = "failed", f"Timed out after {timeout:g} seconds; spawned process tree stopped"
-                        _stop_tree(process)
+                        tree.stop()
                         break
                     if log_path.stat().st_size > 32 * 1024 * 1024:
                         status, reason = "failed", "Validation exceeded the 32 MiB log limit; spawned process tree stopped"
-                        _stop_tree(process)
+                        tree.stop()
                         break
                     time.sleep(0.05)
                 result["exit_code"] = process.wait(timeout=10)
         except (OSError, subprocess.TimeoutExpired) as exc:
-            if process is not None:
-                _stop_tree(process)
+            if tree is not None:
+                tree.stop()
             status, reason = "unavailable", str(exc)
         except BaseException:
-            if process is not None:
-                _stop_tree(process)
+            if tree is not None:
+                tree.stop()
             raise
+        finally:
+            if tree is not None:
+                tree.close()
         output = log_path.read_text(encoding="utf-8", errors="replace") if log_path.exists() else ""
         counts = parse_test_counts(output, spec.get("parser", ""))
         after = self._reports(cwd, patterns)
