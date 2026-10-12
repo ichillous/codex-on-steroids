@@ -36,6 +36,7 @@ def test_all_evidence_classes_are_screened_before_parsing_persistence_or_prompt(
         "package.json": json.dumps({"scripts": {"test": 'API_KEY="package-script-marker" python -m pytest'}}),
         "pyproject.toml": '[project]\nname="demo"\n[tool.demo]\n"api_key" = "toml-marker"\n',
         "AGENTS.md": 'Example configuration: {"client_secret": "instruction-marker"}',
+        "AGENTS.override.md": 'Example configuration: {"api_key": "override-marker"}',
         "README.md": "Authorization: Bearer readme-marker-1234",
         "calc.py": 'options = {"api_key": "quoted-key-marker"}\n',
         "tests/test_calc.py": 'options = {"password": "test-marker"}\n',
@@ -55,8 +56,52 @@ def test_all_evidence_classes_are_screened_before_parsing_persistence_or_prompt(
         onboarding.tailor(project, inventory, out)
     saved = (out / "inventory.json").read_text() + (out / "setup-prompt.md").read_text()
     for marker in ("private-index-marker", "package-script-marker", "toml-marker", "instruction-marker",
-                   "readme-marker-1234", "quoted-key-marker", "test-marker", "pointer-marker"):
+                   "readme-marker-1234", "quoted-key-marker", "test-marker", "pointer-marker", "override-marker"):
         assert marker not in saved
+
+
+def test_safe_override_instructions_are_available_as_screened_evidence(tmp_path):
+    put(tmp_path, "AGENTS.override.md", "Inspect build definitions before running checks.")
+    inventory = onboarding.discover(tmp_path, KIT)
+    assert inventory["evidence_files"] == ["AGENTS.override.md"]
+    assert inventory["repositories"][0]["instructions"] == ["AGENTS.override.md"]
+    assert "Inspect build definitions" in onboarding.prepare_prompt(tmp_path, inventory)
+
+
+def test_model_argv_disables_unscreened_native_instruction_loading(tmp_path, monkeypatch):
+    project = tmp_path / "project"
+    project.mkdir()
+    put(project, "AGENTS.md", 'API_KEY="base-instruction-private-marker"')
+    put(project, "AGENTS.override.md", 'API_KEY="override-private-marker"')
+    inventory = onboarding.discover(project, KIT)
+    plan = onboarding.static_plan(inventory)
+    plan["mode"] = "model"
+    output = tmp_path / "output"
+    captured = {}
+
+    class Process:
+        returncode = 0
+
+        def __init__(self, argv, **kwargs):
+            captured.update(argv=argv, kwargs=kwargs)
+            overrides = [argv[index + 1] for index, value in enumerate(argv) if value == "-c"]
+            # Codex's automatic document loader runs before the submitted
+            # prompt. The subprocess must explicitly disable that loading.
+            assert overrides.count("project_doc_max_bytes=0") == 1
+
+        def communicate(self, input, timeout):
+            captured["prompt"] = input.decode()
+            (output / "setup-result.json").write_text(json.dumps(plan))
+
+    monkeypatch.setattr(onboarding, "resolve_codex", lambda *args: ["fixture-native-codex.exe"])
+    monkeypatch.setattr(onboarding.subprocess, "Popen", Process)
+    assert onboarding.tailor(project, inventory, output) == plan
+    saved = (output / "inventory.json").read_text() + (output / "setup-prompt.md").read_text()
+    for marker in ("base-instruction-private-marker", "override-private-marker"):
+        assert marker not in saved + captured["prompt"]
+    assert captured["argv"][captured["argv"].index("--sandbox") + 1] == "read-only"
+    assert "--model" not in captured["argv"]
+    assert "--ask-for-approval" not in captured["argv"]
 
 
 def test_credential_after_excerpt_limit_still_excludes_whole_file(tmp_path):

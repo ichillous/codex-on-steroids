@@ -287,6 +287,7 @@ class OnboardingTests(unittest.TestCase):
         self.assertIn("command=", coordinator)
         self.assertIn("args=[]", coordinator)
         self.assertIn("features.multi_agent=false", argv)
+        self.assertIn("project_doc_max_bytes=0", argv)
         self.assertNotIn("--model", argv)
         self.assertNotIn("--dangerously-bypass-approvals-and-sandbox", argv)
         self.assertFalse(captured["kwargs"]["shell"])
