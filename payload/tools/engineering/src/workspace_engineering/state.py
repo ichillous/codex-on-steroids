@@ -10,13 +10,33 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from .util import atomic_json, digest, process_alive, utcnow
+from .util import approval_identity, atomic_json, digest, process_alive, utcnow
 
 TERMINAL = {"completed", "failed", "cancelled", "needs_reconciliation", "incomplete"}
 
 
 class StateConflict(RuntimeError):
     pass
+
+
+def lease_authority_path() -> Path:
+    """Fixed authority for this OS account; independent of artifact directories.
+
+    Do not add a CLI/environment override: that would split checkout ownership.
+    Tests replace this function with a disposable authority before creating Stores.
+    """
+    if os.name == "nt":
+        import ctypes
+        directory = ctypes.create_unicode_buffer(32768)
+        # CSIDL_LOCAL_APPDATA, resolved by the OS, not caller environment variables.
+        result = ctypes.windll.shell32.SHGetFolderPathW(None, 0x001C, None, 0, directory)
+        if result:
+            raise OSError("Cannot resolve the account's shared checkout lease authority")
+        base = Path(directory.value)
+    else:
+        import pwd
+        base = Path(pwd.getpwuid(os.getuid()).pw_dir) / ".local/state"
+    return base / "workspace-engineering" / "checkout-leases.sqlite"
 
 
 class Store:
@@ -116,23 +136,79 @@ class Store:
                 data["error"] = None
             db.execute("UPDATE runs SET pid=?,status='running',data=?,updated=? WHERE id=?", (os.getpid(), json.dumps(data), utcnow(), run_id))
 
-    def finish_process(self, run_id: str, release: bool) -> None:
-        with self.connect() as db:
-            db.execute("UPDATE runs SET pid=NULL,updated=? WHERE id=? AND pid=?", (utcnow(), run_id, os.getpid()))
-            if release:
+    @contextmanager
+    def lease_connect(self):
+        authority = lease_authority_path()
+        authority.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        db = sqlite3.connect(authority, timeout=30)
+        db.row_factory = sqlite3.Row
+        try:
+            db.execute("PRAGMA busy_timeout=30000")
+            db.execute("CREATE TABLE IF NOT EXISTS leases (resource TEXT PRIMARY KEY, journal TEXT NOT NULL, run_id TEXT NOT NULL, created TEXT NOT NULL)")
+            db.execute("BEGIN IMMEDIATE")
+            yield db
+            db.commit()
+        except BaseException:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
+    @property
+    def journal_identity(self):
+        return os.path.normcase(str(self.database.resolve()))
+
+    def _release_paths(self, run_id):
+        # Do not create global state for status, doctor, or read-only jobs.
+        if lease_authority_path().exists():
+            with self.lease_connect() as leases:
+                leases.execute("DELETE FROM leases WHERE journal=? AND run_id=?", (self.journal_identity, run_id))
+                with self.connect() as db:
+                    db.execute("DELETE FROM leases WHERE run_id=?", (run_id,))
+        else:
+            with self.connect() as db:
                 db.execute("DELETE FROM leases WHERE run_id=?", (run_id,))
 
-    def acquire_paths(self, run_id: str, paths: list[Path]) -> None:
-        resources = [os.path.normcase(str(p.resolve())).rstrip("\\/") for p in paths]
-        with self.connect() as db:
+    def finish_process(self, run_id: str, release: bool) -> None:
+        def finish(db, leases=None):
             db.execute("BEGIN IMMEDIATE")
-            existing = db.execute("SELECT resource,run_id FROM leases").fetchall()
+            row = db.execute("SELECT pid FROM runs WHERE id=?", (run_id,)).fetchone()
+            if not row:
+                raise KeyError(run_id)
+            if row["pid"] not in (None, os.getpid()) and process_alive(row["pid"]):
+                raise StateConflict("Only the owning coordinator can release a run")
+            if release:
+                if leases is not None:
+                    leases.execute("DELETE FROM leases WHERE journal=? AND run_id=?", (self.journal_identity, run_id))
+                db.execute("DELETE FROM leases WHERE run_id=?", (run_id,))
+            db.execute("UPDATE runs SET pid=NULL,updated=? WHERE id=?", (utcnow(), run_id))
+        # Keep owner removal and release under the same journal transaction;
+        # another executor cannot claim this run between those two operations.
+        if release and lease_authority_path().exists():
+            with self.lease_connect() as leases, self.connect() as db:
+                finish(db, leases)
+        else:
+            with self.connect() as db:
+                finish(db)
+
+    def acquire_paths(self, run_id: str, paths: list[Path]) -> None:
+        self.get_run(run_id)
+        resources = [os.path.normcase(str(p.resolve())).rstrip("\\/") for p in paths]
+        # Shared transaction serializes same-path and parent/child claims across
+        # every Store for this OS account. Dead/unknown owners are never stolen.
+        with self.lease_connect() as leases, self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            existing = list(leases.execute("SELECT resource,journal,run_id FROM leases"))
+            # Preserve leases from older versions of this journal as well.
+            existing += [dict(row) | {"journal": self.journal_identity}
+                         for row in db.execute("SELECT resource,run_id FROM leases")]
             for path in resources:
                 for row in existing:
                     other = row["resource"]
                     overlap = path == other or path.startswith(other + os.sep) or other.startswith(path + os.sep)
-                    if overlap and row["run_id"] != run_id:
-                        raise StateConflict(f"Checkout overlaps run {row['run_id']}: {other}")
+                    if overlap and (row["journal"], row["run_id"]) != (self.journal_identity, run_id):
+                        raise StateConflict(f"Checkout overlaps run {row['run_id']} in journal {row['journal']}: {other}")
+                leases.execute("INSERT OR IGNORE INTO leases VALUES(?,?,?,?)", (path, self.journal_identity, run_id, utcnow()))
                 db.execute("INSERT OR IGNORE INTO leases VALUES(?,?,?)", (path, run_id, utcnow()))
 
     def cancel(self, run_id: str) -> None:
@@ -196,11 +272,15 @@ class Store:
             self.pending_approval(run_id, operation_id, event)
 
     def pending_approval(self, run_id: str, operation_id: str, event: dict) -> str:
-        approval_id = digest([operation_id, event.get("request_id"), event.get("method")])[:32]
+        approval_id = digest(approval_identity(operation_id, event.get("request_id"), event.get("method"), event.get("params") or {}))[:32]
         path = Path(event["decision_path"]).resolve()
         if not path.is_relative_to(self.directory / "approvals"):
             raise ValueError("Approval decision path escaped state directory")
         with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            previous = db.execute("SELECT status,event FROM approvals WHERE id=?", (approval_id,)).fetchone()
+            if previous and (previous["status"] != "pending" or json.loads(previous["event"]) != event):
+                raise StateConflict("Native approval identity was already used; an old decision cannot be replayed")
             db.execute("INSERT OR IGNORE INTO approvals VALUES(?,?,?,?,?,?,?)",
                        (approval_id, run_id, operation_id, "pending", json.dumps(event, default=str), None, utcnow()))
         self.update_run(run_id, "needs_input", pending_approval=approval_id)
@@ -237,6 +317,27 @@ class Store:
             remaining = db.execute("SELECT id FROM approvals WHERE run_id=? AND status='pending' ORDER BY created LIMIT 1", (run_id,)).fetchone()
         self.update_run(run_id, "needs_input" if remaining else "running", pending_approval=remaining["id"] if remaining else None)
 
+    def reconcile_release(self, run_id: str, acknowledge: bool) -> None:
+        """Recover a retained lease after a crash with no unsettled operations."""
+        if not acknowledge:
+            raise ValueError("Inspect worker and checkout, then provide --acknowledge-risk")
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            run = db.execute("SELECT pid,status FROM runs WHERE id=?", (run_id,)).fetchone()
+            if not run:
+                raise KeyError(run_id)
+            operations = db.execute("SELECT status,data FROM operations WHERE run_id=?", (run_id,)).fetchall()
+            if process_alive(run["pid"]) or any(process_alive(json.loads(op["data"]).get("worker_pid")) for op in operations):
+                raise StateConflict("The coordinator or worker process may still be alive")
+            if any(op["status"] in {"prepared", "running", "needs_input", "needs_reconciliation"} for op in operations):
+                raise StateConflict("Reconcile unsettled operations before releasing the checkout")
+            status = run["status"] if run["status"] in {"completed", "incomplete"} else "cancelled"
+            # Retire before releasing, so this run cannot race a new claimant.
+            db.execute("UPDATE runs SET cancel=1,pid=NULL,status=?,updated=? WHERE id=?", (status, utcnow(), run_id))
+            db.execute("INSERT INTO events(run_id,kind,payload,created) VALUES(?,?,?,?)",
+                       (run_id, "checkout_release", json.dumps({"acknowledged": True}), utcnow()))
+        self._release_paths(run_id)
+
     def reconcile_retry(self, run_id: str, operation_id: str, acknowledge: bool) -> None:
         run = self.get_run(run_id)
         op = self.operation(operation_id)
@@ -268,5 +369,5 @@ class Store:
             db.execute("UPDATE approvals SET status='expired' WHERE operation_id=? AND status='pending'", (operation_id,))
             db.execute("UPDATE runs SET cancel=1,status='cancelled',updated=? WHERE id=?", (utcnow(), run_id))
             outstanding = db.execute("SELECT id FROM operations WHERE run_id=? AND status IN ('prepared','running','needs_input','needs_reconciliation')", (run_id,)).fetchall()
-            if not outstanding:
-                db.execute("DELETE FROM leases WHERE run_id=?", (run_id,))
+        if not outstanding:
+            self._release_paths(run_id)

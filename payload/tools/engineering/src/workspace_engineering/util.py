@@ -57,3 +57,11 @@ def process_alive(pid: int | None) -> bool:
         return False
     except PermissionError:
         return True
+
+
+def approval_identity(operation_id, request_id, method, params):
+    """One correlation key shared by native decisions and durable approval rows."""
+    if type(request_id) not in (int, str):
+        raise ValueError("Native approval request ID must be an integer or string")
+    return [operation_id, method, type(request_id).__name__, request_id,
+            params.get("threadId"), params.get("turnId")]

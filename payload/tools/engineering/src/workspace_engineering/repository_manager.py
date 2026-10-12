@@ -16,6 +16,9 @@ from typing import Any
 import yaml
 
 
+_RUNTIME_PARTS = {".git", ".engineering-state", ".venv", ".venv-studio", ".venv-graphify", "__pycache__", ".pytest_cache", "node_modules", "target", "dist", "node-target"}
+
+
 class RepositoryError(ValueError):
     """Repository identity or a source boundary could not be established."""
 
@@ -68,6 +71,7 @@ class RepositoryManager:
         self.config = data
         self.repositories = data["repositories"]
         self.checkouts = dict(checkouts or {})
+        self.runtime_paths = set()
         unknown = set(self.checkouts) - set(self.repositories)
         if unknown:
             raise RepositoryError(f"Unknown checkout bindings: {sorted(unknown)}")
@@ -135,9 +139,10 @@ class RepositoryManager:
                 "status": "available" if all(v["status"] == "available" for v in records.values()) else "limited"}
 
     def _excluded(self, root: Path, relative: str, repo_id: str, *, explicit: bool = False) -> bool:
+        if any((root / relative).resolve().is_relative_to(path) for path in self.runtime_paths):
+            return True
         parts = Path(relative).parts
-        hard = {".git", ".engineering-state", ".venv", ".venv-studio", "__pycache__", ".pytest_cache", "node_modules", "target", "dist", "node-target"}
-        if any(part.casefold() in hard for part in parts):
+        if any(part.casefold() in _RUNTIME_PARTS for part in parts):
             return True
         if not explicit:
             exclusions = self.config.get("snapshot_excludes", []) + self.repositories[repo_id].get("snapshot_excludes", [])
@@ -166,6 +171,18 @@ class RepositoryManager:
                 raise RepositoryError(f"Source path crosses another Git root: {value}")
             current = current.parent
         return candidate
+
+    def normalize_scope(self, repo_id, paths):
+        root = self.resolve(repo_id)
+        result = []
+        for value in paths:
+            path = self._owned_path(root, value)
+            relative = path.relative_to(root).as_posix()
+            if self._excluded(root, relative, repo_id, explicit=True):
+                raise RepositoryError(f"Source scope is reserved or belongs to a nested repository: {value}")
+            if relative not in result:
+                result.append(relative)
+        return result
 
     def snapshot(self, repo_id: str, paths: list[str] | None = None) -> dict:
         root = self.resolve(repo_id)
@@ -220,6 +237,13 @@ class RepositoryManager:
             "head": _git(root, "rev-parse", "--verify", "HEAD", check=False).decode().strip() or None,
             "index_sha256": file_sha256(index) if index.is_file() else None,
             "files": files, "scope": scopes or None,
+            "exclusions": {
+                "runtime_directory_names": sorted(_RUNTIME_PARTS),
+                "runtime_paths": sorted(str(path) for path in self.runtime_paths),
+                "configured": [] if scopes else self.config.get("snapshot_excludes", []) + self.repositories[repo_id].get("snapshot_excludes", []),
+                "other_repository_ids": sorted(set(self.repositories) - {repo_id}),
+                "ignored_files": "Excluded unless explicitly scoped; installed dependencies and external services are not fingerprinted",
+            },
         }
         payload["fingerprint"] = hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=True).encode()).hexdigest()
         payload["file_count"] = len(files)

@@ -16,7 +16,7 @@ from typing import TypedDict
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 
-from .models import Task
+from .models import Task, validate_worker_result
 from .reporting import write_report
 from .state import StateConflict, Store
 from .util import atomic_json, digest
@@ -40,17 +40,23 @@ class RunStopped(RuntimeError):
     pass
 
 
-def parse_result(text: str) -> dict:
+def parse_result(text: str, criteria=None, *, require_all=False) -> dict:
+    def unique_object(pairs):
+        value = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError("Duplicate JSON object field: " + key)
+            value[key] = item
+        return value
+
     candidate = text.strip()
     if candidate.startswith("```"):
         candidate = candidate.split("\n", 1)[1].rsplit("```", 1)[0].strip()
     try:
-        result = json.loads(candidate)
+        result = json.loads(candidate, object_pairs_hook=unique_object)
     except (ValueError, IndexError) as exc:
         raise ValueError("Worker did not return the required JSON result; raw output was retained") from exc
-    if not isinstance(result, dict) or not isinstance(result.get("summary"), str):
-        raise ValueError("Worker result must be an object containing summary")
-    return result
+    return validate_worker_result(result, criteria, require_all=require_all)
 
 
 class Coordinator:
@@ -75,8 +81,14 @@ class Coordinator:
     def create(self, task: Task) -> str:
         # Resolve scope before the job becomes dispatchable.
         repos = self.repositories or self.repository_class(self.workspace, checkouts=task.checkouts)
+        task = task.model_copy(deep=True)
+        repos.runtime_paths.add(self.store.directory)
         for repo in task.repositories:
             root = repos.resolve(repo)
+            if root.is_relative_to(self.store.directory):
+                raise ValueError("State directory cannot contain a selected checkout")
+            if repo in task.scope:
+                task.scope[repo] = repos.normalize_scope(repo, task.scope[repo])
             for relative in task.scope.get(repo, []):
                 if not (root / relative).resolve().is_relative_to(root.resolve()):
                     raise ValueError(f"Scope resolves outside {repo}: {relative}")
@@ -102,6 +114,9 @@ class Coordinator:
         if self.default_runtime:
             self.runtime.timeout = self.task.worker_timeout_seconds
         self.repos = self.repositories or self.repository_class(self.workspace, checkouts=self.task.checkouts)
+        if any(self.repos.resolve(repo).is_relative_to(self.store.directory) for repo in self.task.repositories):
+            raise ValueError("State directory cannot contain a selected checkout")
+        self.repos.runtime_paths.add(self.store.directory)
         self.store.claim_run(run_id)
         release = True
         try:
@@ -155,7 +170,7 @@ class Coordinator:
     def _prepare(self, state):
         self._check_cancel()
         inventory = self.repos.inventory(self.task.repositories)
-        snapshots = {r: self.repos.snapshot(r, self.task.scope.get(r)) for r in self.task.repositories}
+        snapshots = {r: self._snapshot(r) for r in self.task.repositories}
         self.store.update_run(self.run_id, "running", inventory=inventory, initial_snapshots=snapshots)
         return {"inventory": inventory, "snapshots": snapshots}
 
@@ -174,7 +189,7 @@ class Coordinator:
         revision = state.get("revision", 0)
         cwd = self.repos.resolve(repo)
         key = f"{stage}:{revision}:{role}:{repo}"
-        before = self.repos.snapshot(repo, self.task.scope.get(repo))
+        before = self._snapshot(repo)
         previous_op = self.store.operation(digest([self.run_id, key])[:32])
         if stage == "implement" and previous_op is None:
             expected = state["snapshots"][repo]
@@ -187,8 +202,9 @@ class Coordinator:
             after = cached.get("source_after")
             if not after or after.get("fingerprint") != before.get("fingerprint"):
                 raise StateConflict(f"Cached {stage} evidence for {repo} no longer matches current source")
+            validate_worker_result(cached.get("result"), self.task.acceptance_criteria, require_all=stage == "review")
             return cached
-        complete_before = self.repos.snapshot(repo) if not readonly else None
+        complete_before = before if not readonly else None
         packet = {
             "task": self.task.model_dump(), "stage": stage, "repository": repo,
             "workspace_root": str(self.workspace),
@@ -214,7 +230,9 @@ class Coordinator:
                   "Do not launch other agents or engineering jobs. Do not stage, commit, reset, clean, publish or deploy. "
                   "Respect the explicit repository and path scope. "
                   + ("Inspect only; do not modify source or execute mutating checks. " if readonly else "Implement the assigned scoped changes and focused tests. Preserve unrelated edits and index. ")
-                  + "Return only one JSON object matching this contract (empty findings is valid):\n"
+                  + "Return only one JSON object matching this contract (empty findings is valid). "
+                  + "Use only the listed enum values, include concrete nonblank evidence, and never duplicate criteria. "
+                  + "A review must report every exact task criterion once.\n"
                   + json.dumps(output_contract) + "\nTask packet:\n" + json.dumps(packet, default=str))
         directory = self.store.run_dir(self.run_id) / "operations" / op_id
         atomic_json(directory / "input.json", packet)
@@ -238,18 +256,18 @@ class Coordinator:
                 if status == "cancelled":
                     raise RunStopped("Worker interrupted: " + result.get("termination_reason", "native interruption"))
                 raise RuntimeError(f"Worker {op_id} ended {status}: {result.get('error', '')}")
-            parsed = parse_result(result.get("text", ""))
-            after = self.repos.snapshot(repo, self.task.scope.get(repo))
+            parsed = parse_result(result.get("text", ""), self.task.acceptance_criteria, require_all=stage == "review")
+            after = self._snapshot(repo)
             if readonly and before.get("fingerprint") != after.get("fingerprint"):
                 raise StateConflict(f"Read-only worker observed changing source in {repo}")
             if complete_before is not None:
-                complete_after = self.repos.snapshot(repo)
+                complete_after = after
                 if complete_before.get("index_sha256") != complete_after.get("index_sha256"):
                     raise StateConflict(f"Implementation changed the Git index in {repo}")
                 old_files, new_files = complete_before.get("files", {}), complete_after.get("files", {})
                 changed = [path for path in set(old_files) | set(new_files) if old_files.get(path) != new_files.get(path)]
-                scopes = [p.replace("\\", "/").rstrip("/") for p in self.task.scope[repo]]
-                outside = [p for p in changed if not any(s == "." or p == s or p.startswith(s + "/") for s in scopes)]
+                scopes = [os.path.normcase(p).replace("\\", "/").rstrip("/") for p in self.task.scope[repo]]
+                outside = [p for p in changed if not any(s == "." or os.path.normcase(p).replace("\\", "/") == s or os.path.normcase(p).replace("\\", "/").startswith(s + "/") for s in scopes)]
                 if outside:
                     raise StateConflict(f"Changes outside assigned scope in {repo}: {outside[:20]}")
             complete = {"operation_id": op_id, "role": role, "repository": repo, "result": parsed,
@@ -286,7 +304,7 @@ class Coordinator:
             with ThreadPoolExecutor(max_workers=min(self.task.max_workers, len(group))) as pool:
                 jobs = [pool.submit(self._worker, "implement", "implementer", repo, state, False) for repo in group]
                 result.extend(job.result() for job in jobs)
-        snapshots = {r: self.repos.snapshot(r, self.task.scope.get(r)) for r in self.task.repositories}
+        snapshots = {r: self._snapshot(r) for r in self.task.repositories}
         initial = self.store.get_run(self.run_id)["data"]["initial_snapshots"]
         for repo, current in snapshots.items():
             if current.get("index_sha256") != initial[repo].get("index_sha256"):
@@ -298,7 +316,9 @@ class Coordinator:
         catalog = self.validation.catalog()
         checks = catalog.get("checks", catalog)
         results = []
+        self._assert_fresh(state["snapshots"])
         for check in self.task.checks:
+            self._assert_fresh(state["snapshots"])
             definition = checks[check]
             repo = definition.get("repository", definition.get("repo", self.task.repositories[0]))
             if repo not in self.task.repositories:
@@ -321,9 +341,28 @@ class Coordinator:
         self._assert_fresh(state["snapshots"])
         return {"validations": results}
 
+    def _snapshot(self, repo):
+        # Write scope is an authorization boundary, never the evidence boundary.
+        snapshot = self.repos.snapshot(repo)
+        scope = self.task.scope.get(repo)
+        if scope:
+            # Explicitly scoped ignored files must remain part of evidence too.
+            snapshot["files"].update(self.repos.snapshot(repo, scope)["files"])
+            snapshot["explicit_ignored_scope"] = scope
+        config_path = getattr(self.repos, "config_path", None)
+        validation_path = getattr(self.validation, "config_path", None)
+        snapshot["evidence_context"] = {
+            "validation_catalog": digest(self.validation.catalog()),
+            "validation_catalog_bytes": digest(Path(validation_path).read_bytes().hex()) if validation_path else None,
+            "repository_catalog": digest(Path(config_path).read_bytes().hex()) if config_path else None,
+        }
+        snapshot["file_count"] = len(snapshot["files"])
+        snapshot["fingerprint"] = digest({k: v for k, v in snapshot.items() if k not in {"fingerprint", "notes"}})
+        return snapshot
+
     def _assert_fresh(self, snapshots):
         for repo, old in snapshots.items():
-            current = self.repos.snapshot(repo, self.task.scope.get(repo))
+            current = self._snapshot(repo)
             if current.get("fingerprint") != old.get("fingerprint"):
                 raise StateConflict(f"Source changed after capture in {repo}; prior validation/review is stale")
 
@@ -338,7 +377,7 @@ class Coordinator:
     def _decide(self, state):
         self._check_cancel()
         self._assert_fresh(state["snapshots"])
-        result = state["review"]["result"]
+        result = validate_worker_result(state["review"]["result"], self.task.acceptance_criteria, require_all=True)
         acceptance = result.get("acceptance", [])
         by_criterion = {a.get("criterion"): a for a in acceptance if isinstance(a, dict)}
         accepted = all(by_criterion.get(c, {}).get("status") == "met" and by_criterion[c].get("evidence") for c in self.task.acceptance_criteria)

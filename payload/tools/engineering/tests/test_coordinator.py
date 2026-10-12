@@ -168,3 +168,120 @@ def test_scope_and_parallel_groups_reject_ambiguous_ownership():
         Task(**base, scope={"workspace": ["../escape"]})
     with pytest.raises(ValueError, match="exactly once"):
         Task(**base, scope={"workspace": ["file"]}, implementation_groups=[["workspace"], ["workspace"]])
+
+
+def test_dependency_outside_write_scope_invalidates_completed_check(setup):
+    root, task, factory = setup
+    (root / "helper.py").write_text("def add(a,b): return a+b\n")
+    def mutation(packet, kwargs):
+        if packet["stage"] == "implement":
+            (root / "calc.py").write_text("from helper import add\n")
+        if packet["stage"] == "review":
+            (root / "helper.py").write_text("def add(a,b): return a-b\n")
+    coordinator = factory(FakeRuntime(mutation=mutation))
+    run_id = coordinator.create(task)
+    result = coordinator.execute(run_id)
+    assert result["status"] == "needs_reconciliation"
+    assert "changing source" in result["data"]["error"]
+    validation = next(op for op in coordinator.store.operations(run_id) if op["stage"] == "validate")
+    assert validation["result"]["status"] == "passed"
+    assert "helper.py" in validation["result"]["source_snapshots"]["workspace"]["files"]
+    # Execute the same genuine subprocess check: its historical pass is stale.
+    assert coordinator.validation.run("fixture", root, root / ".engineering-state/recheck")["status"] == "failed"
+
+
+@pytest.mark.parametrize("spelling", ["./calc.py", ".\\calc.py", "calc.py/"])
+def test_scope_is_normalized_before_any_worker_receives_it(setup, spelling):
+    _, task, factory = setup
+    task.scope = {"workspace": [spelling]}
+    # Assignment validation occurs when creating/loading Task, as for a JSON task.
+    task = Task.model_validate(task.model_dump())
+    runtime = FakeRuntime(mutation=fix)
+    coordinator = factory(runtime)
+    run = coordinator.create(task)
+    assert coordinator.store.get_run(run)["task"]["scope"] == {"workspace": ["calc.py"]}
+    result = coordinator.execute(run)
+    assert result["status"] == "completed", result["data"]
+
+
+def test_windows_case_identity_allows_only_the_selected_file(setup):
+    if sys.platform != "win32":
+        pytest.skip("Windows case-insensitive file identity")
+    _, task, factory = setup
+    task.scope = {"workspace": ["CALC.PY"]}
+    coordinator = factory(FakeRuntime(mutation=fix))
+    result = coordinator.execute(coordinator.create(task))
+    assert result["status"] == "completed", result["data"]
+
+
+def test_external_validation_catalog_change_invalidates_review(setup, tmp_path_factory):
+    root, task, factory = setup
+    coordinator = factory(FakeRuntime())
+    checks = tmp_path_factory.mktemp("external-catalog") / "checks.yaml"
+    checks.write_bytes(coordinator.validation.config_path.read_bytes())
+    coordinator.validation = ValidationRunner(root, checks)
+    def mutation(packet, kwargs):
+        fix(packet, kwargs)
+        if packet["stage"] == "review":
+            catalog = yaml.safe_load(checks.read_text())
+            catalog["checks"]["fixture"]["argv"] = [sys.executable, "-c", "raise SystemExit(1)"]
+            checks.write_text(yaml.safe_dump(catalog))
+    coordinator.runtime = FakeRuntime(mutation=mutation)
+    result = coordinator.execute(coordinator.create(task))
+    assert result["status"] == "needs_reconciliation"
+    assert "changing source" in result["data"]["error"]
+
+
+def test_custom_state_directory_inside_checkout_is_not_source(setup):
+    root, task, factory = setup
+    coordinator = factory(FakeRuntime(mutation=fix))
+    coordinator.store = Store(root / "run-artifacts")
+    result = coordinator.execute(coordinator.create(task))
+    assert result["status"] == "completed", result["data"]
+
+
+@pytest.mark.parametrize("change", [
+    lambda value: value["findings"].append({"severity": "critical", "detail": "must stop", "source": "calc.py:1"}),
+    lambda value: value["acceptance"].append(dict(value["acceptance"][0])),
+    lambda value: value["acceptance"][0].update(status=True),
+    lambda value: value["acceptance"][0].update(evidence=" "),
+    lambda value: value["acceptance"][0].update(criterion="made-up criterion"),
+    lambda value: value.update(acceptance=[]),
+])
+def test_malformed_reviewer_result_cannot_complete_a_real_run(setup, change):
+    class MalformedReview(FakeRuntime):
+        def run(self, **kwargs):
+            response = super().run(**kwargs)
+            if kwargs["role"] == "reviewer":
+                value = json.loads(response["text"])
+                change(value)
+                response["text"] = json.dumps(value)
+            return response
+    root, task, factory = setup
+    coordinator = factory(MalformedReview(mutation=fix))
+    result = coordinator.execute(coordinator.create(task))
+    assert result["status"] == "needs_reconciliation", result["data"]
+    assert (root / "calc.py").read_text() == "def add(a, b): return a + b\n"
+
+
+def test_parser_rejects_duplicate_json_fields_and_malformed_records():
+    from workspace_engineering.coordinator import parse_result
+    valid = {"summary": "reviewed", "findings": [], "acceptance": [{"criterion": "x", "status": "met", "evidence": "actual check"}], "verdict": "pass"}
+    for malformed in [dict(valid, findings=["all good"]), dict(valid, verdict="completed"),
+                      dict(valid, summary=42), dict(valid, extra="ignored"),
+                      dict(valid, acceptance=[{"criterion": "x", "status": "met"}])]:
+        with pytest.raises(ValueError):
+            parse_result(json.dumps(malformed))
+    with pytest.raises(ValueError):
+        parse_result('{"summary":"bad","summary":"good","findings":[],"acceptance":[],"verdict":"pass"}')
+    assert parse_result(json.dumps(valid), ["x"], require_all=True) == valid
+
+
+def test_state_directory_cannot_exclude_an_entire_checkout(setup):
+    root, task, factory = setup
+    coordinator = factory(FakeRuntime())
+    coordinator.store = Store(root)
+    task.mode = "investigate"
+    task.scope = {}
+    with pytest.raises(ValueError, match="cannot contain"):
+        coordinator.create(task)

@@ -17,7 +17,7 @@ from pathlib import Path
 from openai_codex.client import CodexClient, CodexConfig
 from pydantic import BaseModel, ConfigDict
 
-from ..util import digest
+from ..util import approval_identity, digest
 
 
 class WireObject(BaseModel):
@@ -68,7 +68,7 @@ class ApprovalBridge:
             # an invented acceptance response or the SDK's permissive fallback.
             self.on_event({"type": "unsupported_native_request", "request_id": request_id, "method": method})
             raise RuntimeError(f"Unsupported native request: {method}; inspect the run")
-        identity = [type(request_id).__name__, request_id, params.get("threadId"), params.get("turnId")]
+        identity = approval_identity(self.operation_id, request_id, method, params)
         path = self.directory / (digest(identity) + ".json")
         if path.exists():
             raise RuntimeError("Existing decision artifact cannot be replayed for a new native request")

@@ -30,8 +30,8 @@ def parser() -> argparse.ArgumentParser:
             entry.add_argument("--request", required=True, help="Approval ID displayed by status")
             entry.add_argument("--decision", required=True, help="An exact native decision offered by the request")
         if name == "reconcile":
-            entry.add_argument("--operation", required=True)
-            entry.add_argument("--action", choices=["retry", "abandon"], required=True)
+            entry.add_argument("--operation", help="Required for retry or abandon")
+            entry.add_argument("--action", choices=["retry", "abandon", "release"], required=True)
             entry.add_argument("--acknowledge-risk", action="store_true")
     sub.add_parser("mcp", help="Serve the local engineering tools over stdio")
     return root
@@ -67,8 +67,15 @@ def main(argv=None) -> int:
                 service.store.approve(args.run, args.request, args.decision)
                 result = {"run_id": args.run, "approval_id": args.request, "status": "decision_delivered"}
             else:
-                reconcile = service.store.reconcile_retry if args.action == "retry" else service.store.reconcile_abandon
-                reconcile(args.run, args.operation, args.acknowledge_risk)
+                if args.action == "release":
+                    if args.operation:
+                        raise ValueError("Checkout release applies to the whole run, without --operation")
+                    service.store.reconcile_release(args.run, args.acknowledge_risk)
+                else:
+                    if not args.operation:
+                        raise ValueError("Retry or abandon requires --operation")
+                    reconcile = service.store.reconcile_retry if args.action == "retry" else service.store.reconcile_abandon
+                    reconcile(args.run, args.operation, args.acknowledge_risk)
                 result = service.status(args.run)
         print(json.dumps(result, indent=2, default=str, ensure_ascii=False))
         return 1 if result.get("status") in {"failed", "needs_reconciliation", "incomplete", "cancelled"} else 0

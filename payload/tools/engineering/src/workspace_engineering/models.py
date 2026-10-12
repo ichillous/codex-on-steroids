@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path, PureWindowsPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Literal
 
 import yaml
@@ -50,14 +50,19 @@ class Task(BaseModel):
     @field_validator("scope")
     @classmethod
     def scope_valid(cls, value: dict[str, list[str]]) -> dict[str, list[str]]:
-        for paths in value.values():
+        result = {}
+        for repo, paths in value.items():
+            result[repo] = []
             for path in paths:
                 normalized = path.replace("\\", "/")
-                if not normalized or Path(normalized).is_absolute() or PureWindowsPath(path).drive or ".." in Path(normalized).parts:
+                if not normalized or "\x00" in normalized or Path(normalized).is_absolute() or PureWindowsPath(path).drive or ".." in Path(normalized).parts:
                     raise ValueError("Scope paths must be repository-relative and cannot escape the root")
                 if any(part.lower() == ".git" for part in Path(normalized).parts):
                     raise ValueError("Git metadata cannot be an implementation scope")
-        return value
+                canonical = PurePosixPath(normalized).as_posix()
+                if canonical not in result[repo]:
+                    result[repo].append(canonical)
+        return result
 
     @model_validator(mode="after")
     def check_scope(self) -> Task:
@@ -85,3 +90,51 @@ def load_task(path: Path, mode: str | None = None) -> Task:
     if mode is not None:
         raw["mode"] = mode
     return Task.model_validate(raw)
+
+
+class ResultRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    @field_validator("*", check_fields=False)
+    @classmethod
+    def nonblank_text(cls, value):
+        if isinstance(value, str) and not value.strip():
+            raise ValueError("Result text must not be blank")
+        return value
+
+
+class Finding(ResultRecord):
+    severity: Literal["high", "medium", "low"]
+    detail: str
+    source: str
+
+
+class Acceptance(ResultRecord):
+    criterion: str
+    status: Literal["met", "unmet", "unknown"]
+    evidence: str
+
+
+class WorkerResult(ResultRecord):
+    summary: str
+    findings: list[Finding]
+    acceptance: list[Acceptance]
+    verdict: Literal["pass", "changes_requested", "incomplete"]
+
+    @model_validator(mode="after")
+    def unique_criteria(self):
+        criteria = [item.criterion for item in self.acceptance]
+        if len(set(criteria)) != len(criteria):
+            raise ValueError("Worker acceptance criteria must be unique")
+        return self
+
+
+def validate_worker_result(value: dict, criteria: list[str] | None = None, *, require_all=False) -> dict:
+    result = WorkerResult.model_validate(value)
+    if criteria is not None:
+        observed = {item.criterion for item in result.acceptance}
+        if observed - set(criteria):
+            raise ValueError("Worker acceptance contains unknown task criteria")
+        if require_all and observed != set(criteria):
+            raise ValueError("Reviewer acceptance must cover every task criterion exactly once")
+    return result.model_dump()
