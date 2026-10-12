@@ -356,6 +356,8 @@ If Graphify preparation or dependency installation fails after configuration ins
 
 Environment reuse requires attributable ownership or verification of a compatible earlier kit installation. A linked, incomplete or unverified existing environment is preserved and reported for recovery. Before upgrading an existing runner installation, stop and reconcile its active jobs. Keep the original job journal and shared checkout lease authority until uncertain operations are settled.
 
+When reusing an environment, select `-Python` with the same Python minor version as that environment. Bootstrap preserves a mismatched environment and reports the mismatch. Studio's lock supports Python 3.11 through 3.14 with a compatible NumPy pin and an audio backport selected only for Python 3.13 or newer.
+
 ## Developer checks
 
 The kit includes installer/discovery tests under `tests` and runner/AutoGen tests in the payload. Run installer checks with a Python environment containing pytest:

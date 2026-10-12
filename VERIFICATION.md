@@ -19,18 +19,29 @@ Python, JSON, TOML, YAML, SVG, PowerShell and JavaScript parsing passed. Literal
 
 The 47 protected original workspace artifacts, including the designated Graphify pointer, were preserved. That publication covers a different project: consultation was **limited**, with no matching toolkit symbols. Fixes were verified in current source and disposable fixtures; no graph publication was replaced.
 
-The [CI workflow](.github/workflows/verify.yml) configures the same core suite on Windows with Python 3.11 and 3.14 plus isolated AutoGen component checks. Workflow publication and hosted run results are separate evidence; configuring the matrix does not itself establish a passing Python 3.11 run.
+The [CI workflow](.github/workflows/verify.yml) runs the same core suite on Windows with Python 3.11 and 3.14 plus isolated AutoGen readiness and component checks. Workflow configuration and observed hosted results are separate evidence; see the hosted follow-up below.
 
-These checks did not run a new paid onboarding turn, a live production engineering job, an AutoGen provider experiment or a complete owner-approved product blueprint. Browser fixtures establish the auditor's bounded interaction/error behavior, not production visual quality or comprehensive business-state coverage. Static setup deliberately skipped dependency downloads; existing engineering and Studio runtime readiness was checked separately. A compatible prior kit environment is reused without mutation only after ownership/dependency/runtime verification.
+These checks did not run a new paid onboarding turn, a live production engineering job, an AutoGen provider experiment or a complete owner-approved product blueprint. Browser fixtures establish the auditor's bounded interaction/error behavior, not production visual quality or comprehensive business-state coverage. The local static setup lifecycle deliberately skipped dependency downloads; hosted CI provides the fresh installation evidence described below. A compatible prior kit environment is reused without mutation only after ownership/dependency/runtime verification.
 
-Selected SHA-256 bindings for the reviewed source:
+### Hosted CI and Studio compatibility follow-up
+
+The [initial hosted run](https://github.com/ichillous/codex-on-steroids/actions/runs/38311034247) checked hardening commit `b6afd56afd6ad04eb73a3f053f94a110880580a3` on fresh Windows environments. Both Python 3.11 and 3.14 installed the core lock, passed `pip check`, and passed **291 tests, 1 skip and 6 subtests**. Durations were 160.70 and 164.89 seconds respectively. The remaining skip is the colon-containing filename Windows forbids; Windows symlink tests executed in CI. Python 3.14 also installed the Studio lock and passed its three component checks.
+
+That run exposed two older Studio pins incompatible with Python 3.11: `audioop-lts==0.2.2` requires Python 3.13+, and `numpy==2.5.3` requires 3.12+. The corrected lock selects the audio backport only for Python 3.13+ and pins NumPy 2.4.6 across the supported minors. Bootstrap now evaluates a bounded set of single `python_version` comparisons, rejects conflicting active pins, and checks the target interpreter's actual minor before installation. Pip and readiness use a shared snapshot of lock bytes; a changed source lock prevents a readiness claim.
+
+The integrated follow-up slice passed **89 tests, 1 existing symlink skip**, in 16.17 seconds, with six input hashes stable through execution. Four local preservation cases executed real disposable venv interpreters with deliberately stale `pyvenv.cfg` declarations and a simulated different selected minor; they verify rejection and preservation, rather than successful installation on four local interpreters. Primary package-index metadata confirms compatible active pins, dependency closure and Windows x64 wheels for both locks on Python 3.11–3.14. Metadata is separate from installation evidence.
+
+The follow-up CI step additionally runs Studio `pip check` and isolated imports of Studio, AutoGen Core, AgentChat and the OpenAI adapter before its component tests. Consult the [published workflow runs](https://github.com/ichillous/codex-on-steroids/actions/workflows/verify.yml) for the final fresh-install outcomes. No provider/model experiment is part of these checks.
+
+Selected SHA-256 bindings for the delivered source, including the locally tested compatibility follow-up:
 
 | File | SHA-256 |
 |---|---|
 | `Setup.ps1` | `97a29480c5b7608d0048a77b09bd96f63b1634628681d3fae171fc92f7af3f9b` |
 | `scripts/install.py` | `17256018bbefef5e39bf41e4289cd33e3a317fee1ade643b3fd68baa24372e5c` |
 | `scripts/onboarding.py` | `4d45dfaa5683804caaa2fb85f0350a27078695d4b7faed844148ee00d2a73c13` |
-| `payload/tools/engineering/bootstrap_runtime.py` | `7360ee0a32bf98bc7b48829722315979631625cfc9dc73e50c285c77eb75a32a` |
+| `payload/tools/engineering/bootstrap_runtime.py` | `4b95fd33deaf773dd6106fa0dcc00f289e6363ec2d868fc3e566ef535cc2f289` |
+| Studio `requirements.lock` | `3cc192f06d2208794582236c4fc260136e104b3cfc74e5b036d16abd9a9cc265` |
 | `payload/tools/engineering/graphify_setup.py` | `5fee85b1fe549a22abe9f401b2d2242b74ba4d0503285b0133c1cdbed21c2653` |
 | `workspace_engineering/coordinator.py` | `dfa7cce3e59094af145be70e1d7eeaa6dffe7f0d9b5d18463a718365c49ea39f` |
 | `workspace_engineering/state.py` | `a54b86c26ade0ff725a2319cc4ab324f3b424d02124629ca4fae3f6c60ae8f05` |
@@ -39,7 +50,7 @@ Selected SHA-256 bindings for the reviewed source:
 | Blueprint `browser_audit.cjs` | `88b9afc365ae25fbdb7c8fb400f53878c960a76a1b27194e543cb746fa71adaa` |
 | Blueprint `blueprint_safety.cjs` | `19f48f0af837515a7212a927ce5357abcbe1b138f0bb15a5e1aa8c2927b4a333` |
 
-Runtime files above are under `payload/tools/engineering/src/`; blueprint scripts are under `modules/blueprint-first/payload/.agents/skills/blueprint-first/scripts/`. Compare exact bytes before reusing these results. Full logs and complete source manifests remain in local disposable validation artifacts.
+Runtime files above are under `payload/tools/engineering/src/`; blueprint scripts are under `modules/blueprint-first/payload/.agents/skills/blueprint-first/scripts/`; the Studio lock is under `payload/tools/engineering/experiments/autogen/`. The initial 290-test run and 51-test slice used bootstrap helper hash `7360ee0a32bf98bc7b48829722315979631625cfc9dc73e50c285c77eb75a32a`; the 89-test follow-up binds its current hash above. Compare exact bytes before reusing these results. Full logs and complete source manifests remain in local disposable validation artifacts.
 
 ## Optional research and blueprint modules — October 12, 2026
 

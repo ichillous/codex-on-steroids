@@ -57,6 +57,10 @@ jobs:
           $studioTestPython = Join-Path $env:RUNNER_TEMP 'studio-tests/Scripts/python.exe'
           & $studioTestPython -I -B -m pip install -r payload/tools/engineering/experiments/autogen/requirements.lock
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $studioTestPython -I -B -m pip check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $studioTestPython -I -B -c 'import autogenstudio, autogen_core, autogen_agentchat, autogen_ext.models.openai'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Push-Location payload/tools/engineering/experiments/autogen
           try {
             & $studioTestPython -B test_experiments.py

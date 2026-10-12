@@ -30,6 +30,8 @@ Preserve `.engineering-state` and the account's shared lease database. Inspect s
 
 Bootstrap reuses a marked environment that belongs to the selected tooling directory. A compatible earlier kit environment can be reused without mutation only when ownership, dependency inputs and runtime readiness are verified. Unmarked, incomplete or linked environments are preserved for deliberate recovery. Dependency environments and graph publications are outside configuration-receipt rollback.
 
+The bootstrap interpreter and reused environment must have the same Python minor version. Select the matching `-Python` executable to reuse it, or deliberately prepare a separate environment for another interpreter. Conditional lock entries are evaluated for that verified runtime, and the original lock must remain unchanged through installation and readiness checks. The Studio compatibility follow-up uses NumPy 2.4.6 across Python 3.11–3.14 and selects `audioop-lts` only on Python 3.13 or newer.
+
 Validation commands own their descendants only for the check's lifetime. A command that starts a background service must use a separately authorized service lifetime rather than leave that service running after validation.
 
 ## Evidence boundaries
