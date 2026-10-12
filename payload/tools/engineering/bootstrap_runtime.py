@@ -16,6 +16,7 @@ import re
 import stat
 import subprocess
 import sys
+import tempfile
 
 
 MARKER = ".starter-kit-environment.json"
@@ -70,15 +71,39 @@ def normalized(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
-def locked_versions(lock: Path) -> dict[str, str]:
+def python_minor() -> tuple[int, int]:
+    return sys.version_info.major, sys.version_info.minor
+
+
+def locked_versions(lock: Path, python_version: tuple[int, int] | None = None) -> dict[str, str]:
+    """Read exact pins and a deliberately small, stdlib-only marker subset.
+
+    pip supports more marker expressions, but accepting an expression here that
+    readiness cannot evaluate would make install and validation disagree.
+    """
+    python_version = python_minor() if python_version is None else python_version
     expected = {}
     for line in safe_path(lock).read_text(encoding="utf-8-sig").splitlines():
         if not line.strip() or line.lstrip().startswith("#"):
             continue
-        match = re.fullmatch(r"([A-Za-z0-9_.-]+)(?:\[[A-Za-z0-9_,.-]+\])?==([^\s;]+)", line.strip())
+        match = re.fullmatch(
+            r"([A-Za-z0-9_.-]+)(?:\[[A-Za-z0-9_,.-]+\])?==([A-Za-z0-9][A-Za-z0-9_.+!-]*)"
+            r"(?:\s*;\s*python_version\s*(==|!=|<=|>=|<|>)\s*(['\"])([0-9]+)\.([0-9]+)\4)?",
+            line.strip(),
+        )
         if not match:
-            raise BootstrapError("Bootstrap requires a reviewed lock containing exact versions")
-        expected[normalized(match[1])] = match[2]
+            raise BootstrapError("Bootstrap requires exact versions with optional single python_version comparisons")
+        if match[3]:
+            target = (int(match[5]), int(match[6]))
+            active = {"==": python_version == target, "!=": python_version != target,
+                      "<=": python_version <= target, ">=": python_version >= target,
+                      "<": python_version < target, ">": python_version > target}[match[3]]
+            if not active:
+                continue
+        name = normalized(match[1])
+        if name in expected and expected[name] != match[2]:
+            raise BootstrapError("Dependency lock contains conflicting active exact versions")
+        expected[name] = match[2]
     if not expected:
         raise BootstrapError("The dependency lock is empty")
     return expected
@@ -101,13 +126,23 @@ def verify_metadata(environment: Path, expected: dict[str, str]) -> None:
         raise BootstrapError("Environment does not match the locked dependencies: " + ", ".join(missing))
 
 
-def verify_runtime(python: Path, environment: Path, root: Path, kind: str) -> None:
-    code = (
+def runtime_guard(environment: Path) -> str:
+    # Marker selection uses the selected bootstrap Python. An existing venv may
+    # have a different minor, so verify its real interpreter before any install
+    # or readiness claim instead of trusting a possibly stale pyvenv.cfg.
+    return (
         "import sys; from pathlib import Path; "
         f"assert Path(sys.prefix).resolve() == Path({str(environment)!r}).resolve(); "
+        f"assert sys.version_info[:2] == {python_minor()!r}, "
+        "'Existing environment Python minor differs from selected bootstrap Python; preserved it. "
+        "Select the matching Python or move the environment aside explicitly before retrying.'; "
         "assert sys.prefix != sys.base_prefix; import pip; "
         "assert Path(pip.__file__).resolve().is_relative_to(Path(sys.prefix).resolve()); "
     )
+
+
+def verify_runtime(python: Path, environment: Path, root: Path, kind: str) -> None:
+    code = runtime_guard(environment)
     if kind == "engineering":
         code += ("import workspace_engineering,langgraph.graph,openai_codex,mcp,yaml,pydantic; "
                  f"assert Path(workspace_engineering.__file__).resolve().is_relative_to(Path({str(root / 'src')!r}).resolve())")
@@ -132,10 +167,23 @@ def prior_install_owns(root: Path, kind: str) -> bool:
 
 def prepare(root: Path, kind: str) -> Path:
     root = safe_path(root)
+    contents = safe_path(root / "requirements.lock").read_bytes()
+    # pip and readiness use the same reviewed bytes even if the source lock is
+    # edited during bootstrap. The accepted grammar contains no relative paths.
+    with tempfile.TemporaryDirectory(prefix="starter-kit-lock-") as directory:
+        lock = safe_path(Path(directory) / "requirements.lock")
+        lock.write_bytes(contents)
+        return prepare_environment(root, kind, lock, locked_versions(lock))
+
+
+def verify_lock_unchanged(root: Path, snapshot: Path) -> None:
+    if safe_path(root / "requirements.lock").read_bytes() != snapshot.read_bytes():
+        raise BootstrapError("Dependency lock changed during bootstrap; readiness was not established. Retry with the reviewed lock.")
+
+
+def prepare_environment(root: Path, kind: str, lock: Path, expected: dict[str, str]) -> Path:
     environment = safe_path(root / (".venv" if kind == "engineering" else ".venv-studio"))
     python = safe_path(environment / "Scripts/python.exe")
-    lock = safe_path(root / "requirements.lock")
-    expected = locked_versions(lock)
     marker = safe_path(environment / MARKER)
     identity = {"schema_version": 1, "kind": kind, "environment": str(environment)}
     if environment.exists():
@@ -147,6 +195,7 @@ def prepare(root: Path, kind: str) -> Path:
                 try:
                     verify_metadata(environment, expected)
                     verify_runtime(python, environment, root, kind)
+                    verify_lock_unchanged(root, lock)
                     print("Reused verified legacy toolkit environment without modifying it.")
                     return python
                 except (BootstrapError, OSError, subprocess.SubprocessError) as exc:
@@ -164,16 +213,14 @@ def prepare(root: Path, kind: str) -> Path:
     safe_path(python)
     # Confirm a real venv and genuine pip before any pip install. Application
     # pip.py cannot satisfy this probe or turn failed bootstrap into success.
-    probe = ("import sys; from pathlib import Path; "
-             f"assert Path(sys.prefix).resolve() == Path({str(environment)!r}).resolve(); "
-             "assert sys.prefix != sys.base_prefix; import pip; "
-             "assert Path(pip.__file__).resolve().is_relative_to(Path(sys.prefix).resolve())")
-    run([str(python), "-I", "-B", "-c", probe], root)
+    run([str(python), "-I", "-B", "-c", runtime_guard(environment)], root)
+    verify_lock_unchanged(root, lock)
     run([str(python), "-I", "-B", "-m", "pip", "install", "--no-user", "--requirement", str(lock)], root)
     if kind == "engineering":
         run([str(python), "-I", "-B", "-m", "pip", "install", "--no-user", "--no-deps", "--editable", str(root)], root)
     verify_metadata(environment, expected)
     verify_runtime(python, environment, root, kind)
+    verify_lock_unchanged(root, lock)
     print(f"{kind.capitalize()} environment ready.")
     return python
 
