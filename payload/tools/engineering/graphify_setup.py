@@ -26,6 +26,10 @@ MAX_FILES = 500
 MAX_WORDS = 2_000_000
 MAX_SOURCE_BYTES = 16 * 1024 * 1024
 MAX_HTML_NODES = 5000
+NETWORK_PIP_SETTINGS = frozenset({
+    "PIP_INDEX_URL", "PIP_EXTRA_INDEX_URL", "PIP_TRUSTED_HOST", "PIP_CERT",
+    "PIP_CLIENT_CERT", "PIP_PROXY", "PIP_TIMEOUT", "PIP_RETRIES",
+})
 # Deliberately omit configuration/credential formats and preprocessors. Only
 # these local structural extractors are eligible for automatic initial setup.
 CODE_SUFFIXES = frozenset("""
@@ -48,8 +52,12 @@ SENSITIVE_NAME = re.compile(
     r"private|payloads?|fixtures?|snapshots?|generated|bundles?|min|lock)(?:$|[._-])"
 )
 LITERAL_CREDENTIAL = re.compile(
-    r"(?i)\b(?:api[_-]?key|access[_-]?token|client[_-]?secret|password|private[_-]?key)"
-    r"\s*[:=]\s*['\"][^'\"\r\n]+['\"]|-----BEGIN [A-Z ]*PRIVATE KEY-----"
+    r"(?i)\b[\w-]*(?:api[_-]?key|access[_-]?token|refresh[_-]?token|secret|"
+    r"password|passwd|authorization|private[_-]?key)[\w-]*[\\'\"]*\s*[:=]\s*\S"
+    r"|[a-z][a-z0-9+.-]*://[^\s/<>\"']+@"
+    r"|\b(?:Bearer|Basic)\s+[a-z0-9+/_.=-]{8,}"
+    r"|\b(?:gh[pousr]_[a-z0-9]{20,}|github_pat_[a-z0-9_]{20,}|AKIA[A-Z0-9]{16})\b"
+    r"|-----BEGIN [A-Z ]*PRIVATE KEY-----"
 )
 
 
@@ -227,13 +235,11 @@ def collect_sources(root: Path, scopes: list[str] | None = None) -> dict:
 def process_env() -> dict:
     # All invoked APIs are local. Remove Graphify overrides so environment
     # settings cannot choose alternate providers, caches, or output locations.
-    environment = {key: value for key, value in os.environ.items() if not key.upper().startswith("GRAPHIFY_")}
-    # pip destination overrides must never redirect installation outside the
-    # project environment. Disable pip config files while preserving explicit
-    # index/proxy environment settings for the user's network.
-    for key in list(environment):
-        if key.upper() in {"PIP_TARGET", "PIP_PREFIX", "PIP_USER", "PIP_ROOT", "PIP_PYTHON", "PIP_CONFIG_FILE"}:
-            environment.pop(key)
+    environment = {key: value for key, value in os.environ.items()
+                   if not key.upper().startswith(("GRAPHIFY_", "PYTHON"))
+                   and (not key.upper().startswith("PIP_") or key.upper() in NETWORK_PIP_SETTINGS)}
+    # Only reviewed argv may choose packages, modes or destinations. Preserve
+    # explicit index/proxy settings while disabling every pip config file.
     environment["PIP_CONFIG_FILE"] = os.devnull
     environment.update({"PYTHONDONTWRITEBYTECODE": "1", "PYTHONUTF8": "1", "PYTHONNOUSERSITE": "1"})
     return environment

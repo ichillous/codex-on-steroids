@@ -11,12 +11,13 @@ param(
     [switch]$Static,
     [switch]$PlanOnly,
     [switch]$SkipDependencies,
+    [switch]$SkipStudio,
     [string]$Rollback
 )
 $ErrorActionPreference = 'Stop'
-& $Python -c 'import sys; sys.exit(0 if sys.version_info >= (3,11) else 1)'
+& $Python -I -B -c 'import sys; sys.exit(0 if sys.version_info >= (3,11) else 1)'
 if ($LASTEXITCODE -ne 0) { throw 'Python 3.11 or newer is required.' }
-$setupArguments = @('-B', (Join-Path $PSScriptRoot 'scripts/install.py'), '--project-root', $ProjectRoot, '--codex', $Codex, '--timeout', "$TimeoutSeconds")
+$setupArguments = @('-I', '-B', (Join-Path $PSScriptRoot 'scripts/install.py'), '--project-root', $ProjectRoot, '--codex', $Codex, '--timeout', "$TimeoutSeconds")
 if ($Model) { $setupArguments += @('--model', $Model) }
 foreach ($moduleName in $Modules) { $setupArguments += @('--module', $moduleName) }
 if ($Static) { $setupArguments += '--static' }
@@ -40,7 +41,11 @@ $studioBootstrap = Join-Path $ProjectRoot 'tools/engineering/experiments/autogen
 # terminate this setup before both isolated environments have been installed.
 & powershell.exe -NoProfile -File $engineeringBootstrap -Python $Python -SkipDoctor
 if ($LASTEXITCODE -ne 0) { throw 'Engineering environment installation failed. Configuration is installed; rerun setup to retry dependencies.' }
-& powershell.exe -NoProfile -File $studioBootstrap -Python $Python
-if ($LASTEXITCODE -ne 0) { throw 'AutoGen Studio environment installation failed. Rerun setup to retry dependencies.' }
-Write-Output 'Graphify is available and its publication was consulted. Engineering and Studio environments are installed. Reload VS Code, then ask Codex to use $workspace-engineering.'
+if (-not $SkipStudio) {
+    & powershell.exe -NoProfile -File $studioBootstrap -Python $Python
+    if ($LASTEXITCODE -ne 0) { throw 'AutoGen Studio environment installation failed. Rerun setup to retry dependencies.' }
+    Write-Output 'Graphify is available and its publication was consulted. Engineering and Studio environments are installed. Reload VS Code, then ask Codex to use $workspace-engineering.'
+} else {
+    Write-Output 'Graphify is available and its publication was consulted. Engineering is installed; Studio dependencies were explicitly skipped. Run tools/engineering/experiments/autogen/bootstrap.ps1 when needed. Reload VS Code, then ask Codex to use $workspace-engineering.'
+}
 Write-Output 'Run .\tools\engineering\eng.ps1 doctor to inspect repository, graph and runtime readiness. Setup has not run application checks.'

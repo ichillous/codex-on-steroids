@@ -78,3 +78,11 @@ def test_graph_failure_stops_setup_before_other_environments(tmp_path):
     assert result.returncode != 0
     assert "Graphify preparation failed" in result.stdout + result.stderr
     assert (project / "order.txt").read_text().splitlines() == ["install", "graphify"]
+
+
+def test_skip_studio_keeps_core_environment_and_graph_preparation(tmp_path):
+    project, kit = fixture_setup(tmp_path)
+    result = run_setup(project, kit, "-SkipStudio")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (project / "order.txt").read_text().splitlines() == ["install", "graphify", "engineering"]
+    assert "Studio dependencies were explicitly skipped" in result.stdout

@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path, PureWindowsPath
@@ -16,7 +17,12 @@ import tempfile
 import tomllib
 from uuid import uuid4
 
-import onboarding
+# Load the trusted sibling explicitly: isolated Python intentionally excludes
+# the current directory and PYTHONPATH from module lookup.
+_onboarding_spec = importlib.util.spec_from_file_location(
+    "starter_kit_onboarding", Path(__file__).resolve().with_name("onboarding.py"))
+onboarding = importlib.util.module_from_spec(_onboarding_spec)
+_onboarding_spec.loader.exec_module(onboarding)
 
 KIT = Path(__file__).resolve().parents[1]
 STATE = ".engineering-state/starter-kit-install.json"
@@ -460,7 +466,8 @@ def apply(project: Path, changes: list[dict], output: Path) -> Path:
 
 
 def rollback(project: Path, receipt_path: Path) -> None:
-    receipt_path = receipt_path.resolve()
+    project = project.resolve()
+    receipt_path = safe_path(project, receipt_path.absolute().relative_to(project).as_posix())
     if not receipt_path.is_relative_to(project / ".engineering-state/setup"):
         raise Conflict("Rollback receipt must be inside this project's .engineering-state/setup directory")
     receipt = json.loads(receipt_path.read_bytes())
@@ -468,15 +475,32 @@ def rollback(project: Path, receipt_path: Path) -> None:
         raise Conflict("Receipt belongs to another project")
     changes = receipt["changes"]
     restores = []
+    seen = set()
     for change in changes:
+        if change["path"] in seen:
+            raise Conflict("Rollback receipt contains duplicate paths")
+        seen.add(change["path"])
         path = safe_path(project, change["path"])
-        if not path.is_file() or sha(path.read_bytes()) != change["after_sha256"]:
+        current = path.read_bytes() if path.is_file() else None
+        current_sha = sha(current) if current is not None else None
+        if path.exists() and not path.is_file():
+            raise Conflict(f"Rollback preserves later edits; file changed: {change['path']}")
+        # A prepared receipt records planned writes. A hard stop can leave a
+        # mixture of applied and untouched paths, including absent new files.
+        if current_sha == change["before_sha256"]:
+            continue
+        if current_sha != change["after_sha256"]:
             raise Conflict(f"Rollback preserves later edits; file changed: {change['path']}")
         original = safe_path(receipt_path.parent, change["backup"]).read_bytes() if change["backup"] else None
-        if original is not None and sha(original) != change["before_sha256"]:
+        if (sha(original) if original is not None else None) != change["before_sha256"]:
             raise Conflict(f"Backup hash differs: {change['path']}")
-        restores.append((path, original))
-    for path, original in reversed(restores):
+        restores.append((change["path"], current, original))
+    for relative, expected, original in reversed(restores):
+        path = safe_path(project, relative)
+        # Repeat the comparison immediately before each mutation. Unknown
+        # concurrent edits remain intact; repeating rollback safely resumes.
+        if not path.is_file() or path.read_bytes() != expected:
+            raise Conflict(f"Rollback preserves later edits; file changed: {relative}")
         if original is None:
             path.unlink()
         else:
