@@ -5,7 +5,7 @@ param(
     [string]$Codex = 'codex',
     [string]$GraphifyPython,
     [string[]]$GraphifyScope = @(),
-    [ValidateSet('idea-research', 'blueprint-first')][string[]]$Modules = @(),
+    [ValidateSet('idea-research', 'blueprint-first', 'claudely', 'reverse-engineer-anything')][string[]]$Modules = @(),
     [string]$Model,
     [ValidateRange(30,7200)][int]$TimeoutSeconds = 600,
     [switch]$Static,

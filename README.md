@@ -11,7 +11,7 @@
 <p align="center">
   <a href="#quick-start">Get started</a> &nbsp; · &nbsp;
   <a href="#how-it-works">See the workflow</a> &nbsp; · &nbsp;
-  <a href="#optional-research-and-blueprint-modules">Explore optional modules</a> &nbsp; · &nbsp;
+  <a href="#optional-modules">Explore optional modules</a> &nbsp; · &nbsp;
   <a href="#graphify-and-existing-tools">Explore Graphify</a> &nbsp; · &nbsp;
   <a href="payload/dev-docs/engineering-automation/portable-guide.md">Read the guide</a> &nbsp; · &nbsp;
   <a href="VERIFICATION.md">Check the evidence</a>
@@ -23,7 +23,7 @@
 |---|---|---|
 | Tailored project context and Graphify relationships, checked against current source. | Six engineering roles, scoped assignments and a persistent LangGraph coordinator. | Selected validation checks, an independent reviewer and explicit unmet criteria. |
 
-Use it for focused Codex work, a durable engineering job, or a separate AutoGen experiment. Add the optional research and blueprint modules when you want to assess an idea and review its experience before investing in implementation. Setup supplies the tooling; you choose which route to start.
+Use it for focused Codex work, a durable engineering job, or a separate AutoGen experiment. Add optional modules to research an idea, review an experience before implementation, apply selected Claude Code practices with `claudely`, or investigate a named shipped artifact with `reverse-engineer-anything`. Setup supplies the tooling; you choose which route to start.
 
 ## Quick start
 
@@ -94,7 +94,13 @@ flowchart LR
     Blueprint --> Approval["Owner reviews and approves implementation"]
     Approval --> Focused
     Approval --> Team
-    Ready --> Focused["Focused Codex work<br/>Graph + source + relevant checks"]
+    Ready --> Focused["Focused source work<br/>Graphify + source + relevant checks"]
+    Ready -.-> Claudely["Optional claudely<br/>Focused context + proportional checks and review"]
+    Claudely -.-> Focused
+    Claudely -.-> Team
+    Ready -.-> Artifact["Optional artifact investigation<br/>Named target + actual REA tool inventory"]
+    Artifact --> ArtifactResult["Attributed artifact observations<br/>Static/runtime evidence + limits"]
+    ArtifactResult -.->|"Requested source follow-up"| Focused
     Ready --> Team["Explicit LangGraph job<br/>Investigate → plan → implement if requested"]
     Team --> Review["Selected checks + independent review<br/>Report the outcome and remaining gaps"]
     Team <--> State["Checkpoints and recovery<br/>Inspect and resume the same run"]
@@ -106,15 +112,21 @@ flowchart LR
 | **Focused Codex work** | A scoped task that fits the regular Codex workflow. | Your task in a trusted project session. |
 | **Idea research** | Deciding whether an idea deserves a bounded next investment. | Explicitly use `$idea-research` after installing its module. |
 | **Blueprint first** | Reviewing journeys, states, rules and a working experience before implementation. | Explicitly use `$blueprint-first` after installing its module. |
+| **Claudely** | Applying selected Claude Code practices to a scoped Codex task or improving a coding workflow. | Use `$claudely` after installing its module. |
+| **Artifact investigation** | Explaining a supplied shipped artifact or obtaining requested runtime evidence. | Use `$reverse-engineer-anything` after installing its module, with separately available REA tools. |
 | **Durable engineering job** | Work that needs tracked specialist assignments, validation, review and recovery. | An explicit runner CLI command, VS Code task or engineering MCP call. |
 | **AutoGen experiment** | Comparing a single analyst with an analyst/reviewer team. | Separately launching Studio and configuring a compatible API provider. |
+
+**Choose the evidence before the tool.** Source behavior, callers and repository architecture use Graphify plus current source. A named shipped artifact, packaged-version difference or requested runtime observation can use the REA route when its actual host tools support the work. Artifact findings retain target identity, observations, inferences and coverage limits; they can inform a separately requested source change. Claudely guides the selected task's planning, context, checks and review rather than starting another execution route.
+
+The [agent-routing guide](payload/dev-docs/engineering-automation/agent-routing.md) adapts `ai-agents-architect` and `ai-team-orchestration` principles through the existing coordinator and roles: one coordinator owns scope, acceptance and integration; implementers own changes; investigators and domain specialists answer bounded questions; reviewers supply independent evidence. Compact handoffs retain source or artifact identity, actual results and unresolved criteria. The named architecture/team skills are not bundled by setup, and their producer/dev/QA responsibility aliases do not register native agent types or extend the runner's schema.
 
 Opening an ordinary chat does not automatically start the coordinator or AutoGen Studio. Both environments are installed by default; running them is a separate choice.
 
 <details>
 <summary><strong>Expand the full end-to-end lifecycle: setup, team execution and recovery</strong></summary>
 
-The default setup prepares the project once. After readiness checks, choose ordinary Codex work, an explicitly started durable engineering job, or a separate AutoGen experiment. Installed optional modules add research and blueprint routes; their handoffs are deliberate choices.
+The default setup prepares the project once. After readiness checks, choose ordinary Codex work, an explicitly started durable engineering job, or a separate AutoGen experiment. Installed optional modules add research, blueprint, claudely and artifact routes; their handoffs are deliberate choices. [Agent routing and evidence handoffs](payload/dev-docs/engineering-automation/agent-routing.md) maps team responsibilities to existing roles and distinguishes prompt guidance from actual native/runtime capabilities.
 
 ```mermaid
 flowchart TB
@@ -150,6 +162,20 @@ flowchart TB
     Route -->|"Blueprint module"| Blueprint
     Route -->|"Focused task"| Focused["Regular Codex workflow<br/>Consult Graphify, verify source and run relevant checks"]
     Focused --> FocusedResult["Review the requested outcome<br/>Report changes, evidence and remaining gaps"]
+
+    Route -->|"Claudely module"| Practice["Apply claudely to the selected task<br/>Proportional planning, focused context, checks and review"]
+    Practice -.->|"Focused source task"| Focused
+    Practice -.->|"Explicit durable job"| Coordinator
+    Practice -.->|"Artifact evidence requested"| Artifact
+
+    subgraph Artifacts["Optional shipped-artifact investigation"]
+        Artifact["Name the artifact, version and question<br/>Establish the permitted observations"] --> Capabilities{"Required REA tools available<br/>and observations authorized?"}
+        Capabilities -->|"Yes"| Observe["Perform supported static or runtime observations<br/>Retain target identity and actual tool evidence"]
+        Capabilities -->|"Gap"| ArtifactGap["Report the missing observation<br/>Recover its cause only within authorized scope"]
+        Observe --> ArtifactResult["Review artifact findings and coverage<br/>Separate observations, inferences and runtime gaps"]
+        ArtifactResult -.->|"Requested source follow-up"| Focused
+    end
+    Route -->|"Artifact module"| Artifact
 
     subgraph Team["2. Explicit durable engineering job"]
         Coordinator["Start through CLI, VS Code task or engineering MCP<br/>LangGraph coordinates the job"]
@@ -190,23 +216,33 @@ Investigate mode goes from planning directly to independent review. Implementati
 
 Research sessions use local files and manual recovery. The research role templates do not register extra native agents or start a LangGraph job. A blueprint must receive its owner's approval before implementation starts; neither optional skill starts the engineering coordinator automatically.
 
+Claudely supplies prompt guidance for the chosen task. REA supplies artifact-investigation instructions; the host's connected tools and authorized observations establish what can run. Neither module installs REA engines, registers REA MCP, enables hooks or changes the kit's existing roles. The arrows describe deliberate handoffs, and static artifact analysis alone does not establish runtime behavior or replace required source/Graphify evidence.
+
 </details>
 
-## Optional research and blueprint modules
+## Optional modules
 
-**Go from a question to a reviewed experience, then into engineering.** Both modules are included in this repository and installed only when selected. You can add either one to an existing toolkit installation, or install both together:
+**Choose the practices and planning tools your task needs.** Four modules are included in this repository and installed only when selected. Add one or more to an existing toolkit installation:
 
 ```powershell
 & 'C:\Toolkits\engineering-starter-kit\Setup.ps1' -ProjectRoot 'C:\Projects\MyApp' -Modules idea-research,blueprint-first
 
 # Install the same module files with static analysis, without model calls or downloads.
 & 'C:\Toolkits\engineering-starter-kit\Setup.ps1' -ProjectRoot 'C:\Projects\MyApp' -Modules idea-research,blueprint-first -Static -SkipDependencies
+
+# Apply Claude Code workflow practices through an instruction-only Codex skill.
+& 'C:\Toolkits\engineering-starter-kit\Setup.ps1' -ProjectRoot 'C:\Projects\MyApp' -Modules claudely -Static -SkipDependencies
+
+# Combine coding discipline with artifact investigation; runtime tools remain separate.
+& 'C:\Toolkits\engineering-starter-kit\Setup.ps1' -ProjectRoot 'C:\Projects\MyApp' -Modules claudely,reverse-engineer-anything -Static -SkipDependencies
 ```
 
 | Module | What you get | Use it when |
 |---|---|---|
 | [`idea-research`](modules/idea-research/README.md) | Research skill, workflow and prompt, six assignment templates, evidence schemas, report templates, and the four `tools/research` Python utilities. | You want traceable evidence, experiments and an independently reviewed decision about the next investment. |
 | [`blueprint-first`](modules/blueprint-first/README.md) | Planning skill, blueprint initializer/checker/map utilities, browser audit, references, and a complete sample HTML/CSS/JavaScript experience. | You want to examine roles, journeys, states, rules and touchpoints before approving implementation. |
+| [`claudely`](modules/claudely/README.md) | Focused skill, proportionate decision guidance, task/review/handoff templates, and documented source rationale. | You want observable outcomes, useful completion checks, bounded delegation/review, and focused context in a Codex coding task. |
+| [`reverse-engineer-anything`](modules/reverse-engineer-anything/README.md) | REA skill, six focused references, pinned source provenance and MIT attribution. | A claim needs a named shipped artifact, decompilation, or requested runtime evidence that source inspection cannot establish. |
 
 After installation, open a fresh Codex session in the destination project and explicitly choose a skill:
 
@@ -220,7 +256,23 @@ Use $blueprint-first to blueprint the requested product or feature.
 Keep unresolved owner decisions visible and review the experience before implementation.
 ```
 
+```text
+Use $claudely to fix the reported defect. Keep the change scoped,
+choose a meaningful check, and report the evidence and remaining gaps.
+```
+
+```text
+Use $reverse-engineer-anything with $claudely to investigate
+[artifact path and version] and answer [specific question].
+Scope: [authorized acquisition, static analysis or runtime observations].
+Check available tools, preserve target identity and distinguish observations from inferences.
+```
+
 Research utilities use Python's standard library. Blueprint initialization and structural checks use Python; its browser audit additionally needs Node.js, a compatible Playwright package, and an available browser. Setup copies that audit but does not install its browser dependencies. See the module guides for commands and prerequisites.
+
+Claudely has no additional executable dependency. It adapts supported workflow practices while preserving project instructions and task authorization; it does not enable hooks, change models or permissions, or start the runner. The rationale is source-backed guidance, with productivity benefits still unmeasured. [Its module guide](modules/claudely/README.md) describes preservation, incremental rollback, and fresh-session discovery checks.
+
+Reverse-engineer-anything installs instructions and attribution only. It does not register REA MCP, acquire tools or engines, or execute a target. Start from a supplied artifact and the active host's actual tool inventory; the skill metadata does not prove those tools are connected. Ordinary source-repository architecture analysis keeps the existing engineering route. [The module guide](modules/reverse-engineer-anything/README.md) separates source and CLI versions, runtime prerequisites, evidence limits, and receipt recovery.
 
 Rerunning setup retains previously installed module selections. Existing independently owned skills are preserved; differing unowned workflow, guide or tool files stop installation for review. Module changes share the base installer's backups, conflict checks and configuration rollback. Local research inputs, reports and diagnostics can contain private information; keep them local and review any material you choose to publish. The repository bundles reusable source and synthetic starter assets.
 
@@ -256,6 +308,8 @@ For a missing graph, default extraction excludes sensitive files, dependencies, 
 | `.agents/skills/idea-research/`, `.codex/research-roles/`, `tools/research/` | Optional research module: evidence workflow, assignment templates and local session/report utilities |
 | `dev-docs/idea-research/`, `.codex/workflows/idea-research.md`, `.codex/prompts/research-idea.md` | Optional research guide, schemas, templates and entry points |
 | `.agents/skills/blueprint-first/` | Optional blueprint module: skill, utilities, references and sample experience |
+| `.agents/skills/claudely/` | Optional Claude-practices module: skill, decision guidance, templates and source rationale |
+| `.agents/skills/reverse-engineer-anything/` | Optional REA module: seven preserved skill/reference files plus source provenance and MIT license; runtime tools are separate |
 
 The kit carries the existing **GPT-6 Astra / ultra** specialist configuration. Model availability must be confirmed for the destination account with `tools\engineering\eng.ps1 doctor --live`. `-Model` changes the onboarding model only. It does not rewrite the worker roles or change your global model preferences.
 
@@ -329,8 +383,8 @@ The examples below use the copied-kit layout. When invoking a centrally stored k
 # Reuse an existing Graphify interpreter and select the initial code scope.
 .\engineering-starter-kit\Setup.ps1 -GraphifyPython 'C:\Tools\Graphify\Scripts\python.exe' -GraphifyScope 'src','tests'
 
-# Add optional discovery and design routes; previously selected modules persist.
-.\engineering-starter-kit\Setup.ps1 -Modules idea-research,blueprint-first
+# Add all optional research, design, coding and artifact routes; previous selections persist.
+.\engineering-starter-kit\Setup.ps1 -Modules idea-research,blueprint-first,claudely,reverse-engineer-anything
 
 # Prepare the core engineering workflow; defer Studio downloads.
 .\engineering-starter-kit\Setup.ps1 -SkipStudio
@@ -368,6 +422,8 @@ python -m pytest .\engineering-starter-kit\tests -q
 
 See [VERIFICATION.md](VERIFICATION.md) for checks actually performed on this kit and their limits.
 
+The latest optional-module installer verification recorded **242 passed, one Windows symlink-creation skip and six passing subtests**, plus relocated static installation, repeat and receipt-recovery checks. These establish package behavior with synthetic local destinations. They do not establish a connected REA runtime, fresh-client skill selection or productivity gains; the [verification record](VERIFICATION.md#rea-module-and-agent-routing--october-13-2026) keeps those limits separate from historical runner and hosted-CI evidence.
+
 The [Windows CI workflow](.github/workflows/verify.yml) runs the installer, packaged runtime, optional-module regressions and isolated AutoGen checks on Python 3.11 and 3.14 with Node 24. It uses fake model workers and offline component checks. Local verification and completed CI results are reported separately.
 
 ## Guides and reference
@@ -377,10 +433,13 @@ The [Windows CI workflow](.github/workflows/verify.yml) runs the installer, pack
 | [Portable setup guide](payload/dev-docs/engineering-automation/portable-guide.md) | Install and tailor the toolkit in another project. |
 | [Engineering runner](payload/tools/engineering/README.md) | Start, inspect and recover durable engineering jobs. |
 | [Operating guide](payload/dev-docs/engineering-automation/operating-guide.md) | Understand task scope, validation and acceptance. |
+| [Agent routing and handoffs](payload/dev-docs/engineering-automation/agent-routing.md) | Choose evidence and existing roles; distinguish prompt, native and durable-runner behavior. |
 | [Architecture](payload/dev-docs/engineering-automation/architecture.md) | Trace components, state and worker responsibilities. |
 | [Troubleshooting](payload/dev-docs/engineering-automation/troubleshooting.md) | Resolve setup, graph, tool and recovery problems. |
 | [AutoGen lab](payload/tools/engineering/experiments/autogen/README.md) | Configure the separate experiment environment. |
 | [Idea research module](modules/idea-research/README.md) | Assess an idea with attributable evidence and local research sessions. |
 | [Blueprint first module](modules/blueprint-first/README.md) | Build and review an experience before approving implementation. |
+| [Claudely module](modules/claudely/README.md) | Apply selected Claude Code practices in Codex with clear evidence limits. |
+| [REA module](modules/reverse-engineer-anything/README.md) | Investigate named artifacts with separately available tools and pinned skill provenance. |
 | [Verification record](VERIFICATION.md) | Review observed checks and the limits of their evidence. |
 | [Audit hardening record](HARDENING.md) | Trace the corrected failure cases and regression coverage. |

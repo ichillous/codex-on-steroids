@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "source_repository": "https://github.com/morluto/rea",
+  "source_commit": "a56f7bb668ab23fec8d33f7af353ac7ed2fe1895",
+  "source_skill_path": ".agents/skills/reverse-engineer-anything",
+  "source_tree_url": "https://github.com/morluto/rea/tree/a56f7bb668ab23fec8d33f7af353ac7ed2fe1895/.agents/skills/reverse-engineer-anything",
+  "reviewed_client_date": "2026-10-13",
+  "relationship": "Six references are byte-identical to the pinned source; local SKILL.md matches its two documented metadata/version-pin generation transformations. Local installation origin and npm tarball byte parity were not established.",
+  "versions": {
+    "authored_skill": "37",
+    "local_skill_metadata": "37",
+    "local_tool_count_metadata": 170,
+    "source_package": "6.4.0",
+    "example_cli_pin": "rea-agents@6.4.0",
+    "npm_6_4_0_git_head": "a56f7bb668ab23fec8d33f7af353ac7ed2fe1895"
+  },
+  "entrypoint_transforms": [
+    {
+      "change": "Add metadata tool_count: 170",
+      "meaning": "Descriptive generated metadata; not a connected-tool guarantee"
+    },
+    {
+      "change": "Replace npx -y rea-agents@latest with npx -y rea-agents@6.4.0",
+      "meaning": "Version-pinned fallback example, not an installation"
+    }
+  ],
+  "generator_source_url": "https://raw.githubusercontent.com/morluto/rea/a56f7bb668ab23fec8d33f7af353ac7ed2fe1895/scripts/generate-skill-metadata.mjs",
+  "skill_files": {
+    "references/android-applications.md": "412d9cb462d85b07f6fdbc2453dd741ca3da2c0dbba627867d5624df94afa74c",
+    "references/connection-and-recovery.md": "668e421e2a27b63058f42ebd36bec04db73404c136e5f47611119ab9d4b4f607",
+    "references/evidence-workflows.md": "dd23217d55342bbe3e98a2bf47a7f208b35a4b41c98645ac160a4d0aac5316f9",
+    "references/javascript-applications.md": "04cc298e2485d1db7925b8789097fc5fdd042e937ed11980d3eabc29cb176e59",
+    "references/native-and-artifacts.md": "1947af57448ba7be6a0736ffbe976c7ecdab4105f315ecc06c830727cc5205fe",
+    "references/runtime-observation.md": "b3eea94dd7d0c6474634de22ac3ccae317f42ba1ba2389d93535ee8dae7d94e1",
+    "SKILL.md": "46b495fe6459c283c1432294ebe67799a54391cd2ded197ee7df3f8ac0a8ac8f"
+  },
+  "license": {
+    "name": "MIT",
+    "copyright": "Copyright (c) 2026 morluto",
+    "source_url": "https://raw.githubusercontent.com/morluto/rea/a56f7bb668ab23fec8d33f7af353ac7ed2fe1895/LICENSE",
+    "bytes": 1064,
+    "sha256": "798f9e4d18e49b30bf2f12696c8ced73dc4e1413da375a333d01281543a1ea8b"
+  },
+  "distribution_additions": [
+    "LICENSE",
+    "SOURCE.json"
+  ],
+  "runtime_effects": "Instructions and attribution only; no REA registration, engine or provider acquisition, configuration repair, target execution, or runtime validation.",
+  "authored_entrypoint": {
+    "source_url": "https://raw.githubusercontent.com/morluto/rea/a56f7bb668ab23fec8d33f7af353ac7ed2fe1895/.agents/skills/reverse-engineer-anything/SKILL.md",
+    "bytes": 13563,
+    "sha256": "b4fc3b53592913e229d116f95c4b898024071678e5269858dac5effc1dd8fca4"
+  }
+}

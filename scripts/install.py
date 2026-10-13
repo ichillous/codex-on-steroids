@@ -28,7 +28,7 @@ KIT = Path(__file__).resolve().parents[1]
 STATE = ".engineering-state/starter-kit-install.json"
 BEGIN = "<!-- BEGIN engineering-starter-kit -->"
 END = "<!-- END engineering-starter-kit -->"
-MODULES = ("idea-research", "blueprint-first")
+MODULES = ("idea-research", "blueprint-first", "claudely", "reverse-engineer-anything")
 
 
 class Conflict(ValueError):
@@ -344,6 +344,10 @@ def managed_instructions(modules: list[str]) -> str:
         body += "\n\n## Idea research\nFor an explicitly requested investigation of an idea, read `.agents/skills/idea-research/SKILL.md`, `.codex/workflows/idea-research.md`, and `dev-docs/idea-research/operating-guide.md`. Use `.codex/prompts/research-idea.md` and the local session tools in `tools/research/`. Preserve original inputs and prior sessions; keep local research artifacts private. Research roles are portable assignment templates, and native collaboration requires actual supported tools and bounded ownership. These files do not automatically start agents or supply durable engineering-runner recovery."
     if "blueprint-first" in modules:
         body += "\n\n## Blueprint planning\nFor explicit planning of a new product, feature or redesign, use `.agents/skills/blueprint-first/SKILL.md` to build and check the affected journeys and touchpoints. Preserve existing work and record open owner decisions. Follow its owner-approval gate before implementing the blueprint; honor approval or a go-ahead already supplied in the active session. This is an optional planning route, not automatic dispatch for every engineering task. Browser audits require separately available Node, Playwright and a browser."
+    if "claudely" in modules:
+        body += "\n\n## Claudely\nUse `.agents/skills/claudely/SKILL.md` when asked to apply Claude Code practices in Codex or improve a coding workflow. It supplies proportional investigation, meaningful completion checks, bounded delegation and review, and useful continuation notes. Existing project instructions and task authorization remain controlling. Installing this skill does not enable hooks, change models or permissions, or start the engineering coordinator."
+    if "reverse-engineer-anything" in modules:
+        body += "\n\n## Artifact investigation\nUse `.agents/skills/reverse-engineer-anything/SKILL.md` for a named shipped artifact, decompilation question, or requested runtime evidence. Ordinary source-repository analysis uses the existing engineering route. This module installs instructions only; it does not register REA MCP, acquire tools or engines, or authorize target execution. Use the active host's actual tool inventory and schemas, preserve artifact identity and evidence limits, and handle an observed connection blocker within the task's authorization."
     return body
 
 
@@ -517,7 +521,7 @@ def main(argv=None) -> int:
     parser.add_argument("--model")
     parser.add_argument("--codex", default="codex")
     parser.add_argument("--timeout", type=int, default=600)
-    parser.add_argument("--module", action="append", choices=MODULES, default=[], help="Opt in to a module; repeat to select both. Previous selections remain installed on rerun.")
+    parser.add_argument("--module", action="append", choices=MODULES, default=[], help="Opt in to a module; repeat to select multiple. Previous selections remain installed on rerun.")
     parser.add_argument("--rollback", type=Path)
     args = parser.parse_args(argv)
     supplied = args.project_root.absolute()

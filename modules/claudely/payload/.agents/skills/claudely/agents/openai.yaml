@@ -1,0 +1,4 @@
+interface:
+  display_name: "Claudely"
+  short_description: "Claude-inspired coding practices for Codex"
+  default_prompt: "Use $claudely to complete this coding task with focused context, proportional planning, and evidence for the result."
